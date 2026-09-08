@@ -1,0 +1,12 @@
+_target_: evalgate.chunking.recursive.RecursiveStructuralChunker
+name: recursive_structural
+target_tokens: 512
+overlap_tokens: 64
+min_tokens: 48
+# Tried in order; the first separator that splits an oversized block wins.
+separators:
+  - "\n\n\n"
+  - "\n\n"
+  - "\n"
+  - ". "
+  - " "

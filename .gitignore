@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Corpus: source documents are pinned by manifest, never committed.
+data/corpus/raw/*
+!data/corpus/raw/.gitkeep
+data/corpus/processed/
+data/index/
+
+# Run artifacts are immutable but large; only curated ones are committed.
+runs/*
+!runs/.gitkeep
+
+# Local caches
+.cache/
+*.sqlite
+*.sqlite-journal
+
+# Secrets
+.env

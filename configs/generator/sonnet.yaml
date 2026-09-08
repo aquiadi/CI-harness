@@ -1,0 +1,7 @@
+provider: anthropic
+model: claude-sonnet-4-6
+prompt: generation/answer_v1.md
+max_tokens: 1024
+temperature: 0.0
+input_usd_per_mtok: 3.0
+output_usd_per_mtok: 15.0

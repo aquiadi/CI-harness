@@ -1,0 +1,4 @@
+_target_: evalgate.chunking.fixed.FixedTokenChunker
+name: fixed_token
+target_tokens: 512
+overlap_tokens: 64

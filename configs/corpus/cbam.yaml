@@ -1,0 +1,43 @@
+# Pinned source documents. URLs are stable EUR-Lex / DG TAXUD endpoints; the
+# manifest records the SHA256 of whatever was actually downloaded, so a silent
+# upstream edit shows up as a hash change rather than as drifting eval numbers.
+name: cbam
+request_timeout_s: 120.0
+max_attempts: 3
+sources:
+  - id: reg_2023_956
+    title: "Regulation (EU) 2023/956 establishing a carbon border adjustment mechanism"
+    url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32023R0956"
+    filename: reg_2023_956.pdf
+    kind: pdf
+    required: true
+  - id: impl_reg_2023_1773
+    title: "Commission Implementing Regulation (EU) 2023/1773 (transitional reporting)"
+    url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32023R1773"
+    filename: impl_reg_2023_1773.pdf
+    kind: pdf
+    required: true
+  - id: guidance_importers
+    title: "Guidance document on CBAM implementation for importers of goods into the EU"
+    url: "https://taxation-customs.ec.europa.eu/system/files/2023-08/Guidance%20document%20on%20CBAM%20implementation%20for%20importers%20of%20goods%20into%20the%20EU_en.pdf"
+    filename: guidance_importers.pdf
+    kind: pdf
+    required: true
+  - id: guidance_operators
+    title: "Guidance document on CBAM implementation for installation operators outside the EU"
+    url: "https://taxation-customs.ec.europa.eu/system/files/2023-08/Guidance%20document%20on%20CBAM%20implementation%20for%20installation%20operators%20outside%20the%20EU.pdf"
+    filename: guidance_operators.pdf
+    kind: pdf
+    required: true
+  - id: reg_2023_956_consolidated
+    title: "Regulation (EU) 2023/956, consolidated text"
+    url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:02023R0956-20240101"
+    filename: reg_2023_956_consolidated.pdf
+    kind: pdf
+    required: false
+  - id: ets_directive_2003_87
+    title: "Directive 2003/87/EC (EU ETS), consolidated text -- referenced throughout CBAM"
+    url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:02003L0087-20240301"
+    filename: ets_directive_2003_87.pdf
+    kind: pdf
+    required: false

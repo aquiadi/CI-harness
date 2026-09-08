@@ -1,0 +1,18 @@
+# Root config. Every number, path, model name and prompt reference in evalgate
+# is reachable from here; nothing is hardcoded in Python.
+defaults:
+  - evalgate_schema
+  - paths: default
+  - corpus: cbam
+  - chunker: recursive_structural
+  - embedder: local
+  - retriever: hybrid
+  - generator: sonnet
+  - judge: sonnet
+  - api: replay
+  - gate: default
+  - evalsets: default
+  - ablation: default
+  - _self_
+
+seed: 0

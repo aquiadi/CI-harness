@@ -1,0 +1,9 @@
+_target_: evalgate.retrieval.sparse.BM25Retriever
+name: bm25
+k: 8
+k1: 1.2
+b: 0.75
+stopwords: en
+stemmer: none
+rerank:
+  enabled: false

@@ -1,0 +1,5 @@
+_target_: evalgate.retrieval.dense.DenseRetriever
+name: dense
+k: 8
+rerank:
+  enabled: false

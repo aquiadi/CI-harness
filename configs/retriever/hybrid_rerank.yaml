@@ -1,0 +1,14 @@
+_target_: evalgate.retrieval.hybrid.HybridRRFRetriever
+name: hybrid_rerank
+k: 8
+candidate_k: 32
+rrf_k: 60
+dense_weight: 1.0
+sparse_weight: 1.0
+rerank:
+  enabled: true
+  _target_: evalgate.retrieval.rerank.CrossEncoderReranker
+  model: BAAI/bge-reranker-base
+  top_n: 32
+  batch_size: 32
+  device: cpu

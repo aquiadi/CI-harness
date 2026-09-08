@@ -1,0 +1,9 @@
+# Default. Every model call is served from a committed cassette; an unmatched
+# call is an error, never a live request. This is what PR CI runs.
+mode: replay
+cache_enabled: true
+cache_path: ${paths.cache_dir}/model_cache.sqlite
+max_retries: 3
+backoff_initial_s: 1.0
+backoff_max_s: 30.0
+timeout_s: 120.0

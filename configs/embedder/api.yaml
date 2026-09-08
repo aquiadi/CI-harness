@@ -1,0 +1,14 @@
+# API embeddings behind a config flag. Costs money and introduces network
+# nondeterminism, so it is never the default.
+_target_: evalgate.embeddings.api.VoyageEmbedder
+name: api
+model: voyage-3
+dim: 1024
+batch_size: 32
+normalize: true
+query_prefix: ""
+document_prefix: ""
+api_key_env: VOYAGE_API_KEY
+endpoint: "https://api.voyageai.com/v1/embeddings"
+timeout_s: 60.0
+usd_per_mtok: 0.06

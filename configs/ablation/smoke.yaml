@@ -1,0 +1,4 @@
+chunkers: [recursive_structural]
+retrievers: [dense, bm25]
+k_values: [3]
+rerank: [false]

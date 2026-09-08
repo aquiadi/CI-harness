@@ -1,0 +1,13 @@
+# Reciprocal rank fusion over the dense and sparse lists. RRF is used rather
+# than score interpolation because cosine similarity and BM25 scores are not
+# on a comparable scale and normalising them is a tuning knob we would then
+# have to defend.
+_target_: evalgate.retrieval.hybrid.HybridRRFRetriever
+name: hybrid
+k: 8
+candidate_k: 32
+rrf_k: 60
+dense_weight: 1.0
+sparse_weight: 1.0
+rerank:
+  enabled: false

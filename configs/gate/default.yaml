@@ -1,0 +1,14 @@
+# The thresholds the build dies on. Deliberately asymmetric: quality is held
+# tightly because it is what the repo claims to protect, while latency and cost
+# are allowed more slack because they are noisier and less consequential.
+baseline_path: ${paths.baseline_path}
+quality_drop_pct: 2.0
+p95_latency_rise_pct: 20.0
+cost_per_query_rise_pct: 15.0
+# Composite quality = weighted mean of normalised axis scores and retrieval
+# recall. Weights sum to 1.0; the gate refuses to run if they do not.
+composite_weights:
+  groundedness: 0.3
+  relevance: 0.2
+  citation_correctness: 0.3
+  recall_at_k: 0.2

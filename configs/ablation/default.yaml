@@ -1,0 +1,7 @@
+# Chunkers x retrievers x k values, plus rerank on/off where the retriever
+# supports it. The sweep expander skips combinations that are not meaningful
+# (rerank on a lexical-only retriever, k above candidate_k).
+chunkers: [fixed_token, recursive_structural, section_aware]
+retrievers: [dense, bm25, hybrid]
+k_values: [3, 8, 16]
+rerank: [false, true]

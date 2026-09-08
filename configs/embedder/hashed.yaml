@@ -1,0 +1,14 @@
+# Dependency-free deterministic embedder: a signed random projection of hashed
+# token n-grams. Weak, but real vectors with real arithmetic, identical on
+# every machine and needing no model download. Used by the test suite and by
+# replay-mode CI so that neither depends on a 2 GB torch install.
+_target_: evalgate.embeddings.deterministic.HashEmbedder
+name: hashed
+model: hashed-ngram-projection-v1
+dim: 384
+batch_size: 256
+normalize: true
+query_prefix: ""
+document_prefix: ""
+ngram_range: [1, 2]
+seed: 0
