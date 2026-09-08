@@ -7,7 +7,7 @@ PY := $(RUN) python
 ARGS ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help install dev ml test check fmt lint types corpus ingest index \
+.PHONY: help install dev ml test check fmt lint types config corpus ingest index \
         eval ablate label report gate-demo serve docker clean
 
 help:  ## List targets
@@ -38,6 +38,9 @@ test:  ## Run the test suite, excluding slow and live tests
 	$(RUN) pytest -m "not slow and not live"
 
 check: lint types test  ## The pre-commit gate. Never commit red.
+
+config:  ## Print the resolved config plus the hashes it implies
+	$(PY) -m evalgate.cli config $(ARGS)
 
 corpus:  ## Download pinned source documents and write the SHA256 manifest
 	$(PY) scripts/fetch_corpus.py $(ARGS)
