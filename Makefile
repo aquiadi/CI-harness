@@ -7,7 +7,7 @@ PY := $(RUN) python
 ARGS ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help install dev ml test check fmt lint types config corpus ingest index \
+.PHONY: help install dev ml test check fmt lint types config seed gen-eval corpus ingest index \
         eval ablate label report gate-demo serve docker clean
 
 help:  ## List targets
@@ -41,6 +41,12 @@ check: lint types test  ## The pre-commit gate. Never commit red.
 
 config:  ## Print the resolved config plus the hashes it implies
 	$(PY) -m evalgate.cli config $(ARGS)
+
+gen-eval:  ## Draft retrieval eval candidates with a model, for review
+	$(PY) -m evalgate.cli gen-eval $(ARGS)
+
+seed:  ## Materialise the hand-written seed eval sets into data/eval/
+	$(PY) scripts/seed_evalsets.py $(ARGS)
 
 corpus:  ## Download pinned source documents and write the SHA256 manifest
 	$(PY) scripts/fetch_corpus.py $(ARGS)

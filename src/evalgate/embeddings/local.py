@@ -14,12 +14,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from evalgate.embeddings.base import Vectors, as_float32, l2_normalise
+from evalgate.errors import EvalgateError
 
 if TYPE_CHECKING:  # pragma: no cover - import only for type checking
     from sentence_transformers import SentenceTransformer
 
 
-class BackendUnavailableError(RuntimeError):
+class BackendUnavailableError(EvalgateError):
     """Raised when a backend's dependencies or credentials are missing."""
 
 

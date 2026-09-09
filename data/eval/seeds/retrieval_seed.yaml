@@ -1,0 +1,101 @@
+# Seed retrieval eval slots, written by hand against the synthetic corpus so
+# that the pipeline is testable before the generated candidates are reviewed.
+# Every gold_span is verified to appear verbatim (whitespace-insensitive) in
+# the named document by scripts/seed_evalsets.py; a typo fails the build rather
+# than silently producing an unanswerable slot.
+corpus: cbam_synthetic
+origin: seed
+status: accepted
+examples:
+  - id: seed-r-001
+    question: What is the deadline for submitting a quarterly report during the transitional period?
+    doc: syn_impl_reg_reporting
+    difficulty: lexical
+    spans:
+      - "no later than one month after the end of the quarter to which it relates"
+  - id: seed-r-002
+    question: How small does a shipment have to be before the rules stop applying to it?
+    doc: syn_reg_main
+    difficulty: semantic
+    spans:
+      - "It does not apply to goods whose total intrinsic value, per consignment, does not exceed EUR 150"
+  - id: seed-r-003
+    question: How long does the authority have to decide on an application to become an authorised declarant?
+    doc: syn_reg_main
+    difficulty: semantic
+    spans:
+      - "shall take a decision within 120 calendar days of receipt of a complete application"
+  - id: seed-r-004
+    question: If my supplier refuses to send emissions figures, what am I allowed to use instead?
+    doc: syn_reg_main
+    difficulty: semantic
+    spans:
+      - "Where actual emissions cannot be adequately determined by the authorised CBAM declarant, default values shall be used"
+  - id: seed-r-005
+    question: What proportion of my emissions must be covered by certificates I already hold each quarter?
+    doc: syn_reg_main
+    difficulty: semantic
+    spans:
+      - "corresponds to at least 80 per cent of the embedded emissions in all goods it has imported since the beginning of the calendar year"
+  - id: seed-r-006
+    question: How is the price of a CBAM certificate calculated?
+    doc: syn_reg_main
+    difficulty: lexical
+    spans:
+      - "the average of the closing prices of emission allowances on the common auction platform for each calendar week"
+  - id: seed-r-007
+    question: When are unused certificates cancelled and is anything paid for them?
+    doc: syn_reg_main
+    difficulty: semantic
+    spans:
+      - "By 1 July of each year, the Commission shall cancel any CBAM certificates that were purchased during the year before the previous calendar year"
+      - "Those certificates shall be cancelled without any compensation"
+  - id: seed-r-008
+    question: Which greenhouse gases are covered for aluminium?
+    doc: syn_reg_main
+    difficulty: lexical
+    spans:
+      - "carbon dioxide for all goods, nitrous oxide for fertilisers, and perfluorocarbons for aluminium"
+  - id: seed-r-009
+    question: How much can we be fined for failing to report, and what makes it worse?
+    doc: syn_impl_reg_reporting
+    difficulty: semantic
+    spans:
+      - "A penalty of between EUR 10 and EUR 50 per tonne of unreported embedded emissions shall be imposed"
+      - "The penalty shall be higher where more than two incomplete or incorrect reports have been submitted in a row, or where the failure to report lasts for more than six months"
+  - id: seed-r-010
+    question: How long do we get to fix a report we have already filed?
+    doc: syn_impl_reg_reporting
+    difficulty: semantic
+    spans:
+      - "may modify a submitted CBAM report until two months after the end of the relevant reporting quarter"
+  - id: seed-r-011
+    question: What counts as an incomplete report?
+    doc: syn_impl_reg_reporting
+    difficulty: lexical
+    spans:
+      - "A CBAM report is incomplete where more than one of the mandatory data fields in Article 2 is missing for a given type of goods"
+  - id: seed-r-012
+    question: Do we need to report indirect emissions for steel right now?
+    doc: syn_faq
+    difficulty: semantic
+    spans:
+      - "During the transitional period, direct emissions only. Indirect emissions are reported for cement, fertilisers and electricity"
+  - id: seed-r-013
+    question: We are based outside the EU. Who files the reports for our shipments?
+    doc: syn_faq
+    difficulty: semantic
+    spans:
+      - "the reporting declarant is the indirect customs representative where that representative agrees to act"
+  - id: seed-r-014
+    question: Which emission factor should an operator use for the electricity it consumed?
+    doc: syn_guidance_operators
+    difficulty: semantic
+    spans:
+      - "Use the actual emission factor of the electricity you consumed where you can demonstrate a direct technical link or a power purchase agreement; otherwise use the average emission factor of the grid in your country"
+  - id: seed-r-015
+    question: Are goods from Switzerland covered?
+    doc: syn_reg_main
+    difficulty: semantic
+    spans:
+      - "Goods originating in Iceland, Liechtenstein, Norway and Switzerland are outside the scope"

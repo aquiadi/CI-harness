@@ -65,6 +65,9 @@ class CorpusConfig:
     # When set, documents are read from this directory instead of the
     # downloaded PDFs. Used for corpora that are not fetched from a URL.
     local_dir: str | None = None
+    # Filenames to skip when loading from local_dir (a corpus directory may
+    # legitimately contain a README that is not part of the corpus).
+    exclude: list[str] = field(default_factory=list)
     request_timeout_s: float = 60.0
     max_attempts: int = 3
     refetch: bool = False
@@ -148,6 +151,36 @@ class EvalSetsConfig:
 
 
 @dataclass
+class EvalGenConfig:
+    """Model-drafted retrieval candidates, for human review."""
+
+    prompt: str = MISSING
+    model: str = MISSING
+    max_tokens: int = 2048
+    temperature: float = 0.0
+    max_attempts: int = 3
+    target_slots: int = 120
+    sample_chunks: int = 80
+    max_questions_per_chunk: int = 2
+    min_chunk_tokens: int = 60
+    input_usd_per_mtok: float = MISSING
+    output_usd_per_mtok: float = MISSING
+
+
+@dataclass
+class LabelConfig:
+    """The terminal labelling CLI."""
+
+    mode: str = "answers"
+    labeller: str = MISSING
+    answers_from: str = "reference"
+    run_id: str | None = None
+    context_k: int = 5
+    show_gold: bool = False
+    relabel: bool = False
+
+
+@dataclass
 class AblationConfig:
     """The sweep matrix for `make ablate`."""
 
@@ -175,6 +208,8 @@ class RootConfig:
     gate: GateConfig = field(default_factory=GateConfig)
     evalsets: EvalSetsConfig = field(default_factory=EvalSetsConfig)
     ablation: AblationConfig = field(default_factory=AblationConfig)
+    label: LabelConfig = field(default_factory=LabelConfig)
+    evalgen: EvalGenConfig = field(default_factory=EvalGenConfig)
 
 
 def register_schema() -> None:
@@ -231,7 +266,10 @@ def resolve_path(cfg: DictConfig, dotted: str) -> Path:
     return path if path.is_absolute() else (find_repo_root() / path).resolve()
 
 
-# Keys that change the meaning of a measurement. Everything outside this set --
+# Keys that change the meaning of a measurement. `evalsets` is deliberately
+# absent: it holds file paths, and where the eval set lives cannot change a
+# result. What the eval set CONTAINS certainly can, so its content hash is
+# recorded in the run record instead. Everything outside this set --
 # where files live, whether the API is replayed, how many workers run -- must
 # not change results, and is excluded so that runs stay comparable across
 # machines. If a run's fingerprint differs, its numbers are not comparable.
@@ -245,7 +283,6 @@ FINGERPRINT_KEYS = (
     "retriever",
     "generator",
     "judge",
-    "evalsets",
 )
 
 

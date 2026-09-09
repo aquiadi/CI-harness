@@ -270,3 +270,111 @@ with an explicit, tested rule beats an accident of a library's NaN handling.
 Cost: a caller cannot distinguish "no signal" from "genuinely weak matches" by
 result count alone; they must look at the scores, which are exactly zero in the
 degenerate case. Real eval questions never hit this path.
+
+## D-0015 -- Gold evidence is a verbatim span, not a chunk id
+
+2026-09-09, M2
+
+A retrieval eval slot stores `gold_spans`: sentences copied verbatim from the
+source document. A retrieved chunk counts as a hit when it contains one, with
+whitespace collapsed on both sides. `gold_chunk_ids` is still recorded, for the
+reference chunking named alongside it, because it is what the human reviewer
+looked at -- but no metric reads it.
+
+Why: chunk ids are a property of the chunker (`{doc_id}#{ordinal}`), and the
+entire ablation matrix varies the chunker. An eval set keyed on one chunker's
+ids can score exactly one configuration, which would make the eval set useless
+for the thing it exists to support. A span is a property of the corpus, so one
+eval set scores every configuration.
+
+Cost: a span that straddles a chunk boundary is a miss for every chunker that
+splits it, which is harsher than a human would be. That is deliberate -- a
+chunk holding half an obligation is a real defect -- but it means recall is
+sensitive to chunk size in a way that a fuzzier matcher would hide. Matching is
+also case-sensitive, because in regulatory text "Article" and "article" are
+different things.
+
+## D-0016 -- A synthetic corpus, labelled as synthetic everywhere
+
+2026-09-09, M2
+
+`data/corpus/synthetic/` holds five documents written for this repository in
+the structural style of the CBAM instruments, and `corpus=cbam_synthetic` is
+the default. Every file opens with "SYNTHETIC DOCUMENT - NOT LAW", the
+directory carries a README saying the same, and every run record and report
+names the corpus that produced it.
+
+Why: the build environment cannot reach EUR-Lex (D-0009), and a harness with
+nothing to measure demonstrates nothing. Making it the default is the choice
+that lets a fresh clone run `make index` with no network and no credentials,
+which is what a reproduction guide has to be able to promise. `corpus=cbam`
+selects the real documents once `make corpus` has fetched them.
+
+Cost: the headline numbers are measured over text this repository wrote, which
+is easier than the real instruments in ways that are hard to quantify -- the
+vocabulary is smaller, the cross-references are shallower, and no sentence is
+400 words long. The numbers are therefore optimistic relative to the real
+corpus, and the README says so rather than implying otherwise. The mitigation
+is that nothing about the harness depends on which corpus it runs over: point
+it at the real one and every number recomputes.
+
+## D-0017 -- The labelling CLI uses rich, not textual
+
+2026-09-09, M2
+
+`make label` is a prompt-and-print loop built on `rich`, not a full-screen
+`textual` application.
+
+Why: the requirement is that a labelling session never loses work. A
+line-oriented loop that appends and fsyncs after every rating satisfies that by
+construction, works over SSH and in a CI log, and is testable by feeding it a
+list of keystrokes -- which is how the resumption and interruption behaviour is
+actually tested here. A full-screen app would look better and would put the
+guarantee behind a widget event loop.
+
+Cost: no mouse, no split panes, no live progress bar. For an hour of rating 1-5
+scores, the loop is not the bottleneck.
+
+One thing this cost us and is worth writing down: rich interprets square
+brackets as markup, so the first version silently deleted every `[chunk#id]`
+citation from the answer being rated -- the exact text the citation-correctness
+axis is about. Answer, question and context are now rendered as `Text`, which
+does not interpret markup.
+
+## D-0018 -- Record/replay arrived in M2, not M5
+
+2026-09-09, M2
+
+The cassette layer was built when retrieval-candidate generation needed a model
+call, two milestones before the regression gate that motivated it.
+
+Why: the alternative was a temporary stub client that would have been deleted
+in M5, and a stub is a second code path that the tests exercise and production
+does not. Building the real thing once means the eval loop, the judge, the
+ablation sweep and the gate all share one client stack, and that stack is
+exercised from the first model call in the repo.
+
+Cost: M2 depends on machinery whose reason for existing only becomes obvious in
+M5, so the commit ordering reads oddly in `git log`. This entry is the
+explanation.
+
+## D-0019 -- Seed labels are attributed and are not independent
+
+2026-09-09, M2
+
+`data/eval/seed_labels.jsonl` carries a rating for each of the 15 seed answers,
+attributed to `seed-author` with a note recording the flaw each answer was
+written to contain. The seed answers are deliberately varied: correct answers,
+an unsupported number, a wrong citation, a missing citation, an overclaim, an
+off-topic answer, and a correct refusal.
+
+Why: judge calibration needs labelled data to be runnable at all, and a judge
+validated only against good answers has not been validated, because it never
+had to detect anything.
+
+Cost, stated plainly: the same author wrote the answer and its score, so these
+are not independent human labels, and agreement measured against them says
+almost nothing about whether the judge agrees with a person. They exist to make
+the calibration pipeline runnable and testable before anyone has labelled.
+`reports/judge_calibration.md` states this wherever they are the source, and
+the report distinguishes them from labels produced through `make label`.

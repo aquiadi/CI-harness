@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from evalgate.errors import EvalgateError
 from evalgate.hashing import sha256_text
 
 # Collapse runs of spaces and tabs, and runs of three or more newlines, without
@@ -26,7 +27,7 @@ TEXT_SUFFIXES = frozenset({".txt", ".md"})
 PDF_SUFFIXES = frozenset({".pdf"})
 
 
-class IngestError(RuntimeError):
+class IngestError(EvalgateError):
     """Raised when a source document cannot be turned into text."""
 
 

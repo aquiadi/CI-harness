@@ -1,0 +1,14 @@
+# The labelling CLI. `labeller` is recorded on every label so that
+# inter-annotator agreement stays computable if a second person ever labels.
+mode: answers          # answers | retrieval
+labeller: ${oc.env:USER,unknown}
+answers_from: reference  # reference | run
+run_id: null
+context_k: 5
+# Gold evidence is hidden while rating answers: seeing the expected evidence
+# anchors the groundedness score to the reference rather than to the context
+# the answer actually had. It is always shown when reviewing retrieval
+# candidates, where it is the object of review.
+show_gold: false
+# Re-show items that already have a label from this labeller.
+relabel: false

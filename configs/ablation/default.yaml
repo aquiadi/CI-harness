@@ -3,5 +3,5 @@
 # (rerank on a lexical-only retriever, k above candidate_k).
 chunkers: [fixed_token, recursive_structural, section_aware]
 retrievers: [dense, bm25, hybrid]
-k_values: [3, 8, 16]
+k_values: [3, 5, 10]
 rerank: [false, true]

@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from omegaconf import DictConfig
 from pydantic import ValidationError
 
+from evalgate.config import load_config
 from evalgate.corpus.manifest import (
     CorpusManifest,
     FetchStatus,
@@ -100,9 +100,8 @@ def test_load_missing_manifest_returns_none(tmp_path: Path) -> None:
     assert load_manifest_if_present(tmp_path / "absent.json") is None
 
 
-def test_committed_manifest_is_valid_and_records_every_source(
-    repo_root: Path, cfg: DictConfig
-) -> None:
+def test_committed_manifest_is_valid_and_records_every_real_source(repo_root: Path) -> None:
+    real = load_config(overrides=["corpus=cbam"])
     manifest = load_manifest_if_present(repo_root / "data" / "corpus" / "manifest.json")
     assert manifest is not None, "run `make corpus` first"
-    assert {e.id for e in manifest.entries} == {s.id for s in cfg.corpus.sources}
+    assert {e.id for e in manifest.entries} == {s.id for s in real.corpus.sources}

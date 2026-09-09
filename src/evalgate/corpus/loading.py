@@ -9,6 +9,7 @@ nothing produced from it can be confused with a run over the real instruments.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,12 +42,15 @@ def _title_from_text(text: str, fallback: str) -> str:
     return fallback
 
 
-def load_local_corpus(name: str, directory: Path) -> LoadedCorpus:
+def load_local_corpus(name: str, directory: Path, exclude: Sequence[str] = ()) -> LoadedCorpus:
     """Load every text document in a directory, ordered by filename."""
+    skip = {entry.lower() for entry in exclude}
     paths = sorted(
         path
         for path in directory.rglob("*")
-        if path.is_file() and path.suffix.lower() in LOCAL_SUFFIXES
+        if path.is_file()
+        and path.suffix.lower() in LOCAL_SUFFIXES
+        and path.name.lower() not in skip
     )
     if not paths:
         raise IngestError(f"no {'/'.join(LOCAL_SUFFIXES)} documents under {directory}")
@@ -85,10 +89,11 @@ def load_corpus(
     raw_dir: Path,
     manifest_path: Path,
     local_dir: Path | None = None,
+    exclude: Sequence[str] = (),
 ) -> LoadedCorpus:
     """Load the corpus from a local directory if configured, else the manifest."""
     if local_dir is not None:
-        return load_local_corpus(name, local_dir)
+        return load_local_corpus(name, local_dir, exclude)
     manifest = load_manifest_if_present(manifest_path)
     if manifest is None:
         raise IngestError(f"no corpus manifest at {manifest_path}; run `make corpus`")

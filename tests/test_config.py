@@ -33,9 +33,21 @@ def test_all_paths_resolve_absolute(cfg: DictConfig, repo_root: Path) -> None:
 
 def test_typed_node_returns_dataclass(cfg: DictConfig) -> None:
     corpus = typed_node(cfg, "corpus", CorpusConfig)
-    assert corpus.name == "cbam"
-    assert corpus.sources
+    assert corpus.name == "cbam_synthetic"
+    assert corpus.local_dir
+
+
+def test_the_real_corpus_pins_every_source_by_https_url() -> None:
+    corpus = typed_node(load_config(overrides=["corpus=cbam"]), "corpus", CorpusConfig)
+    assert len(corpus.sources) >= 4
     assert all(source.url.startswith("https://") for source in corpus.sources)
+    assert len({source.id for source in corpus.sources}) == len(corpus.sources)
+
+
+def test_the_default_corpus_is_the_one_that_reproduces_offline(cfg: DictConfig) -> None:
+    """A fresh clone must be able to build an index with no network."""
+    assert cfg.corpus.name == "cbam_synthetic"
+    assert not cfg.corpus.sources
 
 
 def test_typed_node_rejects_wrong_type(cfg: DictConfig) -> None:
@@ -68,6 +80,9 @@ def test_fingerprint_excludes_paths_and_gate(cfg: DictConfig) -> None:
     assert "paths" not in keys
     assert "gate" not in keys
     assert "api" not in keys
+    # Where the eval files live cannot change a result; what they contain can,
+    # and that is hashed into the run record instead.
+    assert "evalsets" not in keys
     assert {"chunker", "retriever", "embedder", "judge", "generator"} <= keys
 
 

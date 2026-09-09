@@ -1,0 +1,17 @@
+# Candidate generation for the retrieval eval set. The model drafts; a human
+# accepts or rejects through `make label ARGS="label.mode=retrieval"`. Nothing
+# a model produced enters the eval set as accepted without review.
+prompt: evalgen/retrieval_candidates_v1.md
+model: claude-sonnet-4-6
+max_tokens: 2048
+temperature: 0.0
+max_attempts: 3
+# 120 slots is the target; sampling more chunks than that at up to 2 candidates
+# each leaves room for the reviewer to reject freely.
+target_slots: 120
+sample_chunks: 80
+max_questions_per_chunk: 2
+# Chunks below this are headings and boilerplate, not question material.
+min_chunk_tokens: 60
+input_usd_per_mtok: 3.0
+output_usd_per_mtok: 15.0

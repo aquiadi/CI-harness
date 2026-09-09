@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict
 from evalgate.chunking.base import Chunk
 from evalgate.corpus.manifest import utc_now_iso
 from evalgate.embeddings.base import Embedder
+from evalgate.errors import EvalgateError
 from evalgate.hashing import hash_obj, short
 from evalgate.retrieval.base import rank_scores
 
@@ -37,7 +38,7 @@ SPARSE_DIR = "bm25"
 TABLE_NAME = "chunks"
 
 
-class IndexBuildError(RuntimeError):
+class IndexBuildError(EvalgateError):
     """Raised when an index cannot be built or loaded."""
 
 

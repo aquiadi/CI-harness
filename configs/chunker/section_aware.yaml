@@ -1,9 +1,9 @@
 _target_: evalgate.chunking.section.SectionAwareChunker
 name: section_aware
-target_tokens: 768
+target_tokens: 384
 overlap_tokens: 0
 min_tokens: 48
-max_tokens: 1536
+max_tokens: 768
 # Legal-instrument headings. A chunk never spans two of these.
 heading_patterns:
   - "^[ \\t]*(TITLE|CHAPTER|SECTION)[ \\t]+[IVXLC]+"

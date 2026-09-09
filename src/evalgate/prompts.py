@@ -17,10 +17,11 @@ from pathlib import Path
 from string import Template
 from typing import Any
 
+from evalgate.errors import EvalgateError
 from evalgate.hashing import sha256_bytes, short
 
 
-class PromptError(RuntimeError):
+class PromptError(EvalgateError):
     """Raised when a prompt cannot be loaded or rendered."""
 
 

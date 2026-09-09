@@ -61,11 +61,13 @@ def load_documents(cfg: DictConfig) -> LoadedCorpus:
     local_dir: Path | None = None
     if isinstance(local, str) and local:
         local_dir = resolve_path(cfg, "corpus.local_dir")
+    exclude = list(cfg.corpus.get("exclude") or [])
     return load_corpus(
         name=str(cfg.corpus.name),
         raw_dir=resolve_path(cfg, "paths.corpus_raw_dir"),
         manifest_path=resolve_path(cfg, "paths.corpus_manifest_path"),
         local_dir=local_dir,
+        exclude=exclude,
     )
 
 

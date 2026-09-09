@@ -16,11 +16,15 @@ import importlib
 import sys
 from collections.abc import Sequence
 
+from evalgate.errors import EvalgateError
+
 # verb -> (module, callable). Extended as milestones land.
 COMMANDS: dict[str, tuple[str, str]] = {
     "config": ("evalgate.commands.show_config", "run"),
     "ingest": ("evalgate.commands.ingest", "run"),
+    "gen-eval": ("evalgate.commands.gen_eval", "run"),
     "index": ("evalgate.commands.index", "run"),
+    "label": ("evalgate.commands.label", "run"),
     "retrieve": ("evalgate.commands.retrieve", "run"),
 }
 
@@ -54,7 +58,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     module_name, attr = COMMANDS[verb]
     module = importlib.import_module(module_name)
     command = getattr(module, attr)
-    result: int = command(rest)
+    try:
+        result: int = command(rest)
+    except EvalgateError as exc:
+        # Errors we raise on purpose carry an actionable message; a traceback
+        # would bury it. Anything else propagates with its stack intact.
+        sys.stderr.write(f"error: {exc}\n")
+        return 1
+    except KeyboardInterrupt:
+        sys.stderr.write("interrupted\n")
+        return 130
     return result
 
 

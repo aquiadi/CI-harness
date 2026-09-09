@@ -1,0 +1,202 @@
+# Seed answer examples for judge validation, written by hand against the
+# synthetic corpus. The quality is deliberately varied: a judge validated only
+# on good answers has not been validated, because it never had to detect
+# anything. Each item declares the flaw it was written to contain.
+#
+# `author_scores` are the ratings the author intended when writing the answer.
+# They are materialised into data/eval/seed_labels.jsonl attributed to
+# "seed-author", and they are NOT independent human labels: the same author
+# wrote the answer and the score. reports/judge_calibration.md says so wherever
+# they are used. They exist so the calibration pipeline is runnable and
+# testable before a person has labelled anything.
+#
+# Citations use placeholders that scripts/seed_evalsets.py substitutes with
+# real chunk ids under the reference chunker: ${gold} the chunk holding the
+# gold evidence, ${wrong} a chunk from another document, ${missing} an id that
+# does not exist.
+corpus: cbam_synthetic
+# Fixed so that re-running `make seed` produces a byte-identical file: an
+# authored label has no meaningful wall-clock time, and a changing timestamp
+# would make the committed seed labels dirty after every run.
+labelled_at: "2026-09-09T00:00:00Z"
+examples:
+  - id: seed-a-001
+    question: When is the quarterly CBAM report due during the transitional period?
+    doc: syn_impl_reg_reporting
+    spans:
+      - "no later than one month after the end of the quarter to which it relates"
+    flaw: none
+    answer: |
+      The CBAM report is due no later than one month after the end of the quarter
+      it relates to [${gold}]. A report counts as submitted once the registry has
+      assigned it a unique report identification number [${gold}].
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 5}
+
+  - id: seed-a-002
+    question: What is the de minimis threshold, and is it per consignment or per year?
+    doc: syn_reg_main
+    spans:
+      - "It does not apply to goods whose total intrinsic value, per consignment, does not exceed EUR 150"
+    flaw: none
+    answer: |
+      The mechanism does not apply to goods whose total intrinsic value per
+      consignment does not exceed EUR 150 [${gold}]. The threshold is expressed
+      per consignment, not per year [${gold}].
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 5}
+
+  - id: seed-a-003
+    question: How long does the competent authority have to decide on an authorisation application?
+    doc: syn_reg_main
+    spans:
+      - "shall take a decision within 120 calendar days of receipt of a complete application"
+    flaw: unsupported_number
+    answer: |
+      The competent authority must decide within 90 calendar days of receiving a
+      complete application [${gold}]. The period is suspended while the authority
+      waits for additional information it has requested [${gold}].
+    author_scores: {groundedness: 2, relevance: 5, citation_correctness: 3}
+
+  - id: seed-a-004
+    question: What share of embedded emissions must be covered by certificates at the end of each quarter?
+    doc: syn_reg_main
+    spans:
+      - "corresponds to at least 80 per cent of the embedded emissions in all goods it has imported since the beginning of the calendar year"
+    flaw: none
+    answer: |
+      At the end of each quarter the declarant's registry account must hold
+      certificates covering at least 80 per cent of the embedded emissions in all
+      goods imported since the start of that calendar year [${gold}].
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 5}
+
+  - id: seed-a-005
+    question: How is the CBAM certificate price set?
+    doc: syn_reg_main
+    spans:
+      - "the average of the closing prices of emission allowances on the common auction platform for each calendar week"
+    flaw: wrong_citation
+    answer: |
+      The price is the average of the closing prices of emission allowances on the
+      common auction platform for each calendar week [${wrong}]. Where a week has
+      no auctions, the price of the last week with auctions is used [${wrong}].
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 2}
+
+  - id: seed-a-006
+    question: Which gases are covered for fertilisers?
+    doc: syn_reg_main
+    spans:
+      - "carbon dioxide for all goods, nitrous oxide for fertilisers, and perfluorocarbons for aluminium"
+    flaw: none
+    answer: |
+      Carbon dioxide is covered for all goods, and nitrous oxide is additionally
+      covered for fertilisers [${gold}].
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 5}
+
+  - id: seed-a-007
+    question: Can we get money back for certificates we did not need?
+    doc: syn_reg_main
+    spans:
+      - "The number of certificates subject to repurchase shall be limited to one third of the total number of CBAM certificates purchased by the authorised CBAM declarant during the previous calendar year"
+    flaw: overclaim
+    answer: |
+      Yes. A Member State repurchases any excess certificates on request, with no
+      limit on the quantity, at the market price prevailing on the date of the
+      request [${gold}]. Requests can be made at any point in the year.
+    author_scores: {groundedness: 1, relevance: 4, citation_correctness: 2}
+
+  - id: seed-a-008
+    question: What penalty applies for not submitting a report?
+    doc: syn_impl_reg_reporting
+    spans:
+      - "A penalty of between EUR 10 and EUR 50 per tonne of unreported embedded emissions shall be imposed"
+    flaw: missing_citation
+    answer: |
+      The penalty is between EUR 10 and EUR 50 per tonne of unreported embedded
+      emissions. It is higher where more than two incomplete or incorrect reports
+      have been submitted in a row, or where the failure lasts more than six
+      months.
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 1}
+
+  - id: seed-a-009
+    question: How long do we have to correct a submitted report?
+    doc: syn_impl_reg_reporting
+    spans:
+      - "may modify a submitted CBAM report until two months after the end of the relevant reporting quarter"
+      - "may modify the CBAM reports for the first two reporting periods until the submission deadline of the third CBAM report"
+    flaw: none
+    answer: |
+      A submitted report can be modified until two months after the end of the
+      relevant quarter [${gold}]. For the first two reporting periods only, the
+      window runs to the submission deadline of the third report [${gold}].
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 5}
+
+  - id: seed-a-010
+    question: Do we report indirect emissions for iron and steel during the transitional period?
+    doc: syn_reg_main
+    spans:
+      - "For iron and steel, aluminium and hydrogen, only direct emissions are covered during the transitional period"
+    flaw: none
+    answer: |
+      No. For iron and steel, aluminium and hydrogen only direct emissions are
+      covered during the transitional period; indirect emissions are covered for
+      cement, fertilisers and electricity [${gold}].
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 5}
+
+  - id: seed-a-011
+    question: What is the VAT treatment of CBAM certificates?
+    doc: syn_reg_main
+    spans:
+      - "Member States shall sell CBAM certificates to authorised CBAM declarants through a common central platform"
+    flaw: correct_refusal
+    answer: |
+      The retrieved context does not address the VAT treatment of CBAM
+      certificates. It covers how certificates are sold, priced, surrendered,
+      repurchased and cancelled [${gold}], but says nothing about VAT. I cannot
+      answer this from the context provided.
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 5}
+
+  - id: seed-a-012
+    question: Who applies for authorised declarant status if the importer is established outside the EU?
+    doc: syn_reg_main
+    spans:
+      - "Where the importer is not established in a Member State, the indirect customs representative shall apply"
+    flaw: none
+    answer: |
+      The indirect customs representative applies where the importer is not
+      established in a Member State [${gold}].
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 5}
+
+  - id: seed-a-013
+    question: How does an operator identify its installation to importers?
+    doc: syn_guidance_operators
+    spans:
+      - "Give the importer the installation name and address, the geographical coordinates of the main emission source, and the United Nations code for trade and transport locations for the site"
+    flaw: off_topic
+    answer: |
+      Operators should register on the CBAM transitional registry and obtain an
+      operator identification number, which importers then quote in their
+      quarterly reports [${missing}]. Registration opened in 2023 and is free.
+    author_scores: {groundedness: 1, relevance: 2, citation_correctness: 1}
+
+  - id: seed-a-014
+    question: When can estimated values still be used after 2024?
+    doc: syn_impl_reg_reporting
+    spans:
+      - "until 31 December 2025 estimated values may be used for up to 20 per cent of the total embedded emissions of complex goods"
+    flaw: none
+    answer: |
+      From 1 January 2025 only the standard method may be used, except that until
+      31 December 2025 estimated values may cover up to 20 per cent of the total
+      embedded emissions of complex goods, where the declarant records why actual
+      data could not be obtained [${gold}].
+    author_scores: {groundedness: 5, relevance: 5, citation_correctness: 5}
+
+  - id: seed-a-015
+    question: On what grounds can authorised declarant status be revoked?
+    doc: syn_reg_main
+    spans:
+      - "where the holder has failed to comply with the obligation to surrender CBAM certificates, or has failed to submit a CBAM declaration by the deadline in Article 6 for two consecutive years"
+    flaw: partial
+    answer: |
+      Status is revoked where the holder no longer meets the authorisation
+      criteria [${gold}].
+    author_scores: {groundedness: 5, relevance: 3, citation_correctness: 5}

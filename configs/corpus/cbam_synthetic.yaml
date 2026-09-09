@@ -1,0 +1,9 @@
+# A synthetic corpus, written for this repository, in the structural style of
+# the CBAM instruments. It is not law and must not be relied on; see
+# data/corpus/synthetic/README.md and docs/DECISIONS.md D-0009. It exists so
+# that the harness has something to measure where the real sources are
+# unreachable. Runs over it are named cbam_synthetic and every report says so.
+name: cbam_synthetic
+local_dir: ${paths.data_dir}/corpus/synthetic
+exclude: ["README.md"]
+sources: []

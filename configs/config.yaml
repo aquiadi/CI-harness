@@ -3,7 +3,11 @@
 defaults:
   - evalgate_schema
   - paths: default
-  - corpus: cbam
+  # Defaults to the synthetic corpus because that is what reproduces anywhere:
+  # it is committed, so `make index` works on a fresh clone with no network.
+  # `corpus=cbam` selects the real EU documents once `make corpus` has fetched
+  # them. Every run record and report names the corpus it used.
+  - corpus: cbam_synthetic
   - tokenizer: regex
   - chunker: recursive_structural
   - embedder: local
@@ -15,6 +19,8 @@ defaults:
   - gate: default
   - evalsets: default
   - ablation: default
+  - label: default
+  - evalgen: default
   - _self_
 
 seed: 0
