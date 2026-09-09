@@ -14,7 +14,7 @@ PROFILE ?= +experiment=baseline
 
 .DEFAULT_GOAL := help
 .PHONY: help install dev ml test check fmt lint types config seed gen-eval judge freeze record corpus ingest index \
-        eval ablate label report gate-demo serve docker clean
+        eval ablate label readme report gate-demo serve docker clean
 
 help:  ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -80,6 +80,9 @@ ablate:  ## Sweep the config matrix, one immutable parquet per run
 
 label:  ## Terminal labelling CLI (resumable, saves incrementally)
 	$(PY) -m evalgate.cli label $(ARGS)
+
+readme:  ## Regenerate README.md from README.template.md and the artifacts
+	$(PY) scripts/render_readme.py
 
 report:  ## Regenerate reports/ from the run artifacts
 	$(PY) -m evalgate.cli report $(PROFILE) $(ARGS)

@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.cache
+__pycache__
+runs
+reports
+tests
+docs
+data/corpus/raw
+data/index
+data/corpus/processed
+*.sqlite

@@ -673,3 +673,43 @@ that actually detects "this change tripled the context we send".
 Cost: the gate is comparing a projection when it runs offline, which is a
 weaker claim than comparing spend. The alternative -- no cost check at all
 until someone freezes a live baseline -- is weaker still.
+
+## D-0035 -- The README is generated, not written
+
+2026-09-09, M6
+
+`README.md` is rendered from `README.template.md` by `make readme`, with every
+figure pulled from `baseline.json`, the run artifacts and the eval sets. A test
+fails the build when the committed README differs from what the current
+artifacts render to.
+
+Why: the repository's own rule is that no number is ever typed by hand, and the
+README is the single most-read place for a number to go quietly stale -- a
+headline figure copied in once and left there through three changes to the
+retriever is exactly the kind of small dishonesty that makes a reader stop
+trusting the rest. Generating it makes staleness a build failure.
+
+Cost: editing the README means editing a template with `${placeholders}` in it,
+and the prose is one step further from the reader. It also means the README
+cannot describe anything the artifacts do not contain, which is a constraint
+worth having.
+
+## D-0036 -- The serving layer adds nothing to the answer path
+
+2026-09-09, M6
+
+`POST /query` builds the same stack through the same factory functions the
+harness measures, and does no caching, query rewriting or reranking of its own.
+It returns the answer plus the retrieval trace, the cost and the provenance
+hashes.
+
+Why: anything the serving layer added would be untested by the evaluation, and
+the Pareto table would quietly stop describing the deployed system. Returning
+the trace is not a debugging convenience: when an answer is wrong the first
+question is always "what did it retrieve", and an API that cannot answer that
+has to be reproduced offline to find out.
+
+Cost: no serving-side latency tricks, and a slightly larger response body. The
+index is built at startup rather than lazily, so a container that cannot build
+it fails to start instead of failing on traffic -- which is the behaviour you
+want, but it does mean a slower cold start.

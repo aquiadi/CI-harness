@@ -56,8 +56,10 @@ judgment -> run record -> report -> gate. Nothing downstream writes upstream.
   table rather than footnote the difference.
 - **Never let the gate pass on missing data.** Absent metrics fail the gate.
   "No baseline found" is a failure, not a pass.
-- **Never commit a number that was typed by hand.** Every figure in a report or
-  in the README is generated from a run artifact.
+- **Never commit a number that was typed by hand.** Every figure in a report is
+  generated from a run artifact, and the README itself is rendered from
+  `README.template.md` by `make readme`. A test fails the build when the
+  committed README does not match what the current artifacts render to.
 - **Never widen a threshold to make CI green.** Thresholds change only as a
   deliberate, separately-reviewed decision recorded in `docs/DECISIONS.md`.
 - **Never make PR CI spend money.** PR CI replays cassettes. Live API calls

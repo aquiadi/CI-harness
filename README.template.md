@@ -2,12 +2,12 @@
 
 A retrieval-augmented question answering system over EU CBAM regulatory
 documents whose actual product is the evaluation harness around it: an LLM
-judge validated against human labels, a 27-configuration retrieval
+judge validated against human labels, a ${n_configs}-configuration retrieval
 ablation on a cost/latency/quality frontier, and a CI gate that fails a pull
-request when quality regresses. On the frozen baseline it scores **0.828
-composite quality** at **11.4 ms p95** and a projected **$0.01047
+request when quality regresses. On the frozen baseline it scores **${quality}
+composite quality** at **${p95_ms} ms p95** and a projected **$$${projected_cost}
 per query**; the judge currently agrees with the available labels at a Cohen's
-kappa of **0.030 groundedness / 0.005 relevance / 0.268 citation correctness**, which is bad, and the section below says
+kappa of **${calibration_headline}**, which is bad, and the section below says
 why and what would fix it.
 
 The RAG application is deliberately ordinary. The measurement is the point.
@@ -150,14 +150,10 @@ command for anyone with a key.
 ## Judge calibration findings
 
 Full report: [`reports/judge_calibration.md`](reports/judge_calibration.md).
-Agreement between the configured judge (`rule-based-v1`) and the only labels
-currently on disk (`seed-author`, 15 paired items):
+Agreement between the configured judge (`${judge_model}`) and the only labels
+currently on disk (`${label_source}`, ${label_pairs} paired items):
 
-| axis | n | kappa | quadratic kappa | exact agreement | mean human | mean judge |
-| --- | --- | --- | --- | --- | --- | --- |
-| groundedness | 15 | 0.030 | 0.269 | 0.133 | 4.27 | 3.87 |
-| relevance | 15 | 0.005 | 0.087 | 0.067 | 4.60 | 2.60 |
-| citation_correctness | 15 | 0.268 | 0.372 | 0.600 | 3.93 | 3.40 |
+${calibration_table}
 
 **These numbers are bad, and two separate things are wrong with them.**
 
@@ -174,7 +170,7 @@ scores (D-0019), so agreement against them measures whether the judge
 reconstructs the author's intent, not whether it agrees with a person. Nothing
 built on them should be believed.
 
-What would fix it, in order: label the 15 answers through
+What would fix it, in order: label the ${answer_slots} answers through
 `make label` to get independent labels; record cassettes with an API key so
 `judge=sonnet` runs; regenerate. The pipeline that computes kappa, the
 quadratic-weighted variant, the confusion matrices, the ten worst
@@ -190,21 +186,12 @@ and has not run.
 ## The ablation frontier
 
 Full report with both frontier figures:
-[`reports/pareto.md`](reports/pareto.md). 27 configurations measured
+[`reports/pareto.md`](reports/pareto.md). ${n_configs} configurations measured
 over {chunker} x {retriever} x {k}; the nine cross-encoder rerank cells need
 the `ml` extra and are listed in the report as unmeasured. `*` marks a
 configuration on at least one frontier.
 
-|  | config | quality | recall@k | nDCG@10 | p95 ms | projected $/q |
-| --- | --- | --- | --- | --- | --- | --- |
-| * | fixed/hybrid/k=10 | 0.828 | 0.867 | 0.437 | 11.4 | 0.010471 |
-| * | fixed/bm25/k=10 | 0.807 | 0.733 | 0.483 | 0.8 | 0.010347 |
-| * | section/bm25/k=10 | 0.792 | 0.733 | 0.578 | 0.8 | 0.007510 |
-| * | section/hybrid/k=10 | 0.785 | 0.733 | 0.559 | 10.6 | 0.007396 |
-|  | recursive/bm25/k=10 | 0.773 | 0.733 | 0.506 | 0.8 | 0.009682 |
-| * | fixed/bm25/k=5 | 0.770 | 0.600 | 0.442 | 0.7 | 0.006183 |
-|  | section/bm25/k=5 | 0.765 | 0.600 | 0.533 | 0.7 | 0.005030 |
-| * | section/bm25/k=3 | 0.765 | 0.600 | 0.533 | 0.7 | 0.003712 |
+${pareto_table}
 
 Three things the sweep says, on this corpus:
 
@@ -222,10 +209,10 @@ Three things the sweep says, on this corpus:
 
 ## The gate
 
-`baseline.json` freezes the winning configuration: `fixed_token` chunking,
-`hybrid` retrieval at k=10, `hashed` embeddings, `extractive-v1`
-generation, `rule-based-v1` judging, over `cbam_synthetic` (`83d3414da810`),
-scored on 15 retrieval slots and 15 answer
+`baseline.json` freezes the winning configuration: `${chunker}` chunking,
+`${retriever}` retrieval at k=${k}, `${embedder}` embeddings, `${generator}`
+generation, `${judge_model}` judging, over `${corpus}` (`${corpus_hash}`),
+scored on ${n_retrieval_scored} retrieval slots and ${n_answers_scored} answer
 slots. `make eval` re-measures and exits nonzero if composite quality drops
 more than 2%, p95 latency rises more than 20%, or cost per query rises more
 than 15%. Those thresholds live in `configs/gate/`; none of them appears in
@@ -283,8 +270,8 @@ No DVC. No MLflow. Both would be ceremony here, and the reason is worth stating
 because "we use DVC" is easier to put on a slide than "we thought about it".
 
 **Data versioning (DVC).** The things that need versioning are the eval sets
-and the corpus pin. The eval sets are small JSONL files -- 15
-retrieval slots, 15 answer pairs -- that live in git, diff as text
+and the corpus pin. The eval sets are small JSONL files -- ${retrieval_slots}
+retrieval slots, ${answer_slots} answer pairs -- that live in git, diff as text
 in review, and are the sort of artifact where a reviewer genuinely wants to see
 the line-level change. The corpus is large and not ours to redistribute, so
 what is versioned is `data/corpus/manifest.json`: one SHA256 per source
@@ -333,8 +320,8 @@ Stated plainly, worst first.
    bge-small. It makes dense retrieval the worst arm in the sweep, which says
    nothing about dense retrieval. Every dense and hybrid row should be re-run
    with `embedder=local`.
-5. **The eval sets are small.** 15 retrieval slots and
-   15 answer pairs against targets of 120 and 150. With n=15 a
+5. **The eval sets are small.** ${retrieval_slots} retrieval slots and
+   ${answer_slots} answer pairs against targets of 120 and 150. With n=15 a
    single item moves recall@k by 6.7 points, so differences smaller than that
    in the Pareto table are noise. `make gen-eval` drafts candidates and
    `make label` reviews them; both are implemented and neither has been run
