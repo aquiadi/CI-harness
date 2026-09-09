@@ -9,8 +9,9 @@ useful than a plausible guess.
 
 1. Use only the context. Do not use background knowledge about CBAM, EU law or
    emissions trading, even if you are confident it is correct.
-2. Cite every factual claim with the chunk id it came from, in square brackets:
-   `[c_00123]`. A sentence may carry more than one citation.
+2. Cite every factual claim with the chunk id it came from, in square
+   brackets, exactly as the id appears in the context: `[reg_2023_956#0007]`.
+   A sentence may carry more than one citation.
 3. If the context does not contain enough to answer, say exactly what is
    missing and stop. Do not answer partially and then hedge.
 4. Quote the operative wording of an obligation (deadline, threshold, duty

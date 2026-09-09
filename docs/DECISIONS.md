@@ -179,3 +179,94 @@ Cost: the headline numbers in the README are produced under conditions the
 README states explicitly, and are weaker than what the same code produces
 against the real corpus with a real key. That is the honest trade; the
 alternative is a repo whose numbers cannot be traced to how they were made.
+
+## D-0010 -- Chunk sizes are measured with a scaled regex word count
+
+2026-09-09, M1
+
+Chunk boundaries are decided by counting regex word atoms and multiplying by a
+configured `tokens_per_word` (1.3 for English legal prose), not by the
+generation model's real tokenizer.
+
+Why: the real BPE tokenizer is behind an API call. Counting tokens for every
+candidate chunk boundary would cost money per ablation and make chunking depend
+on the network. What the ablations require is that "512 tokens" means the same
+thing in every run and on every machine, which a deterministic local estimate
+delivers and an API call does not.
+
+Cost: the estimate is off by a roughly constant factor, so a chunk labelled 512
+tokens is not exactly 512 to Anthropic's tokenizer. That matters for context
+budgeting, so billed tokens are always read from API usage and never estimated.
+The ratio is config, so recalibrating it is a config change and a new config
+hash, which correctly marks old runs as incomparable.
+
+## D-0011 -- Exact brute-force vector search, no ANN index
+
+2026-09-09, M1
+
+LanceDB is used as a file-based store and searched exhaustively. No IVF/PQ
+index is created.
+
+Why: this corpus is thousands of chunks, where an exact scan costs
+milliseconds. An approximate index would buy nothing measurable here and would
+introduce recall that varies with index build parameters and insertion order --
+a class of "the numbers moved and nobody changed anything" bug that is
+expensive to diagnose and fatal to a repo whose product is trustworthy
+measurement.
+
+Cost: this does not scale. At a million chunks the scan dominates latency and
+an ANN index becomes necessary; at that point the honest move is to measure
+the recall the approximation costs and record it, not to adopt it silently.
+
+## D-0012 -- Hybrid retrieval fuses ranks (RRF), not scores
+
+2026-09-09, M1
+
+The hybrid retriever combines the dense and sparse lists with reciprocal rank
+fusion rather than a weighted sum of normalised scores.
+
+Why: cosine similarity and BM25 are not on a comparable scale, and normalising
+them (min-max over what window? z-score over which corpus?) introduces a
+parameter that has to be re-tuned per corpus and defended per result. RRF uses
+only ranks: one parameter with a well-understood effect, and no way for one
+retriever's score distribution to dominate the fusion.
+
+Cost: RRF discards score magnitude, so a case where the dense retriever is
+extremely confident and the sparse one is weakly ranked is fused the same as
+one where both are marginal. Where magnitude matters, the cross-encoder rerank
+stage is the place to recover it, and the ablations measure whether it does.
+
+## D-0013 -- BM25 parameters live in their own config group
+
+2026-09-09, M1
+
+`k1`, `b`, stopwords and stemmer are in `configs/sparse/`, not in
+`configs/retriever/bm25.yaml`.
+
+Why: bm25s precomputes term scores at index time, so these are properties of
+the index, not of the query. Keeping them under the retriever would mean the
+dense and sparse retrievers disagreed about which index they shared, and the
+ablation sweep would rebuild an identical index once per retriever.
+
+Cost: one more config group, and a slightly surprising place to look for a
+BM25 knob. The comment in the group file says why it lives there.
+
+## D-0014 -- A query with no signal returns k results, not zero
+
+2026-09-09, M1
+
+If a query embeds to a zero vector (no word characters at all), dense search
+scores every chunk zero and falls through to the shared tie-break, returning
+k results in chunk-id order -- matching what BM25 already does for an
+out-of-vocabulary query.
+
+Why: this was found by a hypothesis property test, not by design. LanceDB drops
+the undefined cosine distances and returns nothing, so the same query produced
+0 results from the dense retriever and k from the sparse one. Whatever the
+right answer is, retrievers disagreeing about the shape of their output is not
+it: downstream code would have to special-case one backend. Uniform behaviour
+with an explicit, tested rule beats an accident of a library's NaN handling.
+
+Cost: a caller cannot distinguish "no signal" from "genuinely weak matches" by
+result count alone; they must look at the scores, which are exactly zero in the
+degenerate case. Real eval questions never hit this path.

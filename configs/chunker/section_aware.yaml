@@ -6,7 +6,10 @@ min_tokens: 48
 max_tokens: 1536
 # Legal-instrument headings. A chunk never spans two of these.
 heading_patterns:
-  - "^\\s*(TITLE|CHAPTER|SECTION)\\s+[IVXLC]+"
-  - "^\\s*Article\\s+\\d+[a-z]?\\b"
-  - "^\\s*ANNEX\\s+[IVXLC0-9]+"
-  - "^\\s*\\d+(\\.\\d+)*\\s+[A-Z]"
+  - "^[ \\t]*(TITLE|CHAPTER|SECTION)[ \\t]+[IVXLC]+"
+  - "^[ \\t]*Article[ \\t]+\\d+[a-z]?\\b"
+  - "^[ \\t]*ANNEX[ \\t]+[IVXLC0-9]+"
+  # A numbered heading is a short standalone line that does not end in a full
+  # stop; without those guards a wrapped line beginning "31 July 2024." reads
+  # as a section boundary.
+  - "^[ \\t]*\\d+(?:\\.\\d+)*[ \\t]+[A-Z][^\\n]{0,80}(?<![.])$"

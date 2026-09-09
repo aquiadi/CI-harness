@@ -1,0 +1,7 @@
+# Words and standalone punctuation. tokens_per_word is calibrated for English
+# legal prose, where BPE splits long Latinate words and keeps punctuation
+# separate; see docs/DECISIONS.md D-0010.
+_target_: evalgate.ingest.tokens.RegexTokenEstimator
+name: regex_word
+pattern: "\\w+|[^\\w\\s]"
+tokens_per_word: 1.3

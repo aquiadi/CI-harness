@@ -1,0 +1,9 @@
+# BM25 index-time parameters. These live in their own group rather than under
+# retriever/bm25 because bm25s precomputes scores at index time: k1 and b are
+# properties of the index, not of the query. Keeping them here means the dense
+# and sparse retrievers share one index per (corpus, chunker, embedder).
+name: bm25_default
+k1: 1.2
+b: 0.75
+stopwords: en
+stemmer: none

@@ -62,10 +62,24 @@ class CorpusConfig:
 
     name: str = MISSING
     sources: list[SourceDocument] = field(default_factory=list)
+    # When set, documents are read from this directory instead of the
+    # downloaded PDFs. Used for corpora that are not fetched from a URL.
+    local_dir: str | None = None
     request_timeout_s: float = 60.0
     max_attempts: int = 3
     refetch: bool = False
     user_agent: str = "evalgate-corpus-fetcher/0.1 (+https://github.com/aquiadi/CI-harness)"
+
+
+@dataclass
+class SparseConfig:
+    """BM25 index-time parameters."""
+
+    name: str = MISSING
+    k1: float = 1.2
+    b: float = 0.75
+    stopwords: str = "en"
+    stemmer: str = "none"
 
 
 @dataclass
@@ -150,8 +164,10 @@ class RootConfig:
     seed: int = 0
     paths: PathsConfig = field(default_factory=PathsConfig)
     corpus: CorpusConfig = field(default_factory=CorpusConfig)
+    tokenizer: Any = MISSING
     chunker: Any = MISSING
     embedder: Any = MISSING
+    sparse: SparseConfig = field(default_factory=SparseConfig)
     retriever: Any = MISSING
     generator: GeneratorConfig = field(default_factory=GeneratorConfig)
     judge: JudgeConfig = field(default_factory=JudgeConfig)
@@ -222,8 +238,10 @@ def resolve_path(cfg: DictConfig, dotted: str) -> Path:
 FINGERPRINT_KEYS = (
     "seed",
     "corpus",
+    "tokenizer",
     "chunker",
     "embedder",
+    "sparse",
     "retriever",
     "generator",
     "judge",

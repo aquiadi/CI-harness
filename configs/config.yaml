@@ -4,8 +4,10 @@ defaults:
   - evalgate_schema
   - paths: default
   - corpus: cbam
+  - tokenizer: regex
   - chunker: recursive_structural
   - embedder: local
+  - sparse: default
   - retriever: hybrid
   - generator: sonnet
   - judge: sonnet

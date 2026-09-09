@@ -109,6 +109,9 @@ plugins = []
 # list rather than a global ignore_missing_imports.
 module = [
     "hydra.*",
+    "bm25s.*",
+    "lancedb.*",
+    "sentence_transformers.*",
 ]
 ignore_missing_imports = true
 

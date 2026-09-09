@@ -19,6 +19,9 @@ from collections.abc import Sequence
 # verb -> (module, callable). Extended as milestones land.
 COMMANDS: dict[str, tuple[str, str]] = {
     "config": ("evalgate.commands.show_config", "run"),
+    "ingest": ("evalgate.commands.ingest", "run"),
+    "index": ("evalgate.commands.index", "run"),
+    "retrieve": ("evalgate.commands.retrieve", "run"),
 }
 
 _USAGE = """usage: evalgate <command> [key=value ...]
