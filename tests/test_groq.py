@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from omegaconf import DictConfig
@@ -9,9 +11,15 @@ from pydantic import BaseModel, ConfigDict
 
 from evalgate.config import load_config
 from evalgate.generation.factory import build_generator
+from evalgate.hashing import hash_obj
 from evalgate.ingest.tokens import RegexTokenEstimator
 from evalgate.judging.factory import build_judge
-from evalgate.models.base import ModelClient, ModelRequest
+from evalgate.models.base import (
+    ModelClient,
+    ModelError,
+    ModelRequest,
+    ModelResponse,
+)
 from evalgate.models.client import build_model_client
 from evalgate.models.groq_client import (
     GroqClient,
@@ -20,7 +28,7 @@ from evalgate.models.groq_client import (
     parse_response,
     tool_to_openai,
 )
-from evalgate.models.structured import build_tool
+from evalgate.models.structured import build_tool, call_structured
 
 TOKENIZER = RegexTokenEstimator(name="t", pattern=r"\w+|[^\w\s]", tokens_per_word=1.3)
 
@@ -247,3 +255,91 @@ def test_an_unknown_judge_provider_is_refused() -> None:
     cfg: DictConfig = load_config(overrides=["judge.provider=nonsense"])
     with pytest.raises(ValueError, match="unknown judge provider"):
         build_judge(cfg, None)
+
+
+def test_reasoning_effort_is_sent_only_when_set() -> None:
+    """gpt-oss will not emit a forced tool call without it; Groq 400s instead."""
+    assert "reasoning_effort" not in build_payload(request())
+    payload = build_payload(
+        ModelRequest(
+            model="openai/gpt-oss-120b",
+            prompt="grade this",
+            max_tokens=4096,
+            temperature=0.0,
+            reasoning_effort="low",
+            tool=build_tool("submit", "submit a verdict", Verdict),
+            purpose="judge",
+            prompt_hash="a" * 64,
+        )
+    )
+    assert payload["reasoning_effort"] == "low"
+
+
+def test_reasoning_effort_changes_the_cache_key() -> None:
+    """It changes the response, so it must not be served from the same entry."""
+    base = request()
+    assert replace(base, reasoning_effort="low").cache_key() != base.cache_key()
+    assert (
+        replace(base, reasoning_effort="low").cache_key()
+        != replace(base, reasoning_effort="high").cache_key()
+    )
+
+
+def test_an_unset_reasoning_effort_leaves_existing_cache_keys_alone() -> None:
+    """Every cassette committed before this field existed was keyed without it.
+
+    Including the field unconditionally would miss all of them and turn replay
+    CI red on a change that alters no request, so the key must be byte-identical
+    to what it was when reasoning_effort is None.
+    """
+    assert request().cache_key() == hash_obj(
+        {
+            "model": "llama-3.3-70b-versatile",
+            "prompt": "grade this",
+            "system": None,
+            "max_tokens": 256,
+            "temperature": 0.0,
+            "tool": build_tool("submit", "submit a verdict", Verdict).to_api(),
+            "prompt_hash": "a" * 64,
+        }
+    )
+
+
+def test_the_retry_loop_carries_reasoning_effort() -> None:
+    """A retry that drops it retries a different call than the one that failed."""
+    attempted: list[ModelRequest] = []
+
+    class Recorder:
+        name = "recorder"
+
+        def complete(self, req: ModelRequest) -> ModelResponse:
+            attempted.append(req)
+            return ModelResponse(
+                model=req.model,
+                text="",
+                input_tokens=1,
+                output_tokens=1,
+                latency_s=0.0,
+                tool_input={"score": 4, "reason": "ok"},
+            )
+
+    original = replace(request(), reasoning_effort="low")
+    call_structured(Recorder(), original, Verdict, Path("prompts"), max_attempts=2)
+    assert attempted and all(item.reasoning_effort == "low" for item in attempted)
+
+
+def test_anthropic_refuses_reasoning_effort_rather_than_dropping_it() -> None:
+    """A sampling parameter that silently does nothing fakes comparability."""
+    from evalgate.models.anthropic_client import AnthropicClient
+
+    client = AnthropicClient(timeout_s=1.0, max_retries=1, backoff_initial_s=0.0, backoff_max_s=0.0)
+    with pytest.raises(ModelError, match="reasoning_effort is not supported"):
+        client.complete(replace(request(), reasoning_effort="low"))
+
+
+def test_the_groq_judge_needs_no_reasoning_effort_to_call_its_tool() -> None:
+    """The default judge is the one that complies without being suppressed."""
+    cfg: DictConfig = load_config(overrides=["+experiment=groq"])
+    assert cfg.judge.reasoning_effort is None
+    alternative: DictConfig = load_config(overrides=["+experiment=groq", "judge=groq_gptoss"])
+    assert alternative.judge.reasoning_effort == "low"

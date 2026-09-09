@@ -1,0 +1,20 @@
+# The gpt-oss arm of the judge comparison. Larger than the default judge, but
+# it will not emit a forced tool call at Groq's default reasoning effort -- it
+# answers in prose and Groq rejects the response with tool_use_failed -- so
+# `reasoning_effort: low` is required, not tuning. See configs/judge/groq.yaml.
+#
+#   make judge PROFILE="+experiment=groq" ARGS="judge=groq_gptoss"
+provider: api
+model: openai/gpt-oss-120b
+prompt: judge/rubric_v1.md
+max_tokens: 4096
+temperature: 0.0
+reasoning_effort: low
+max_attempts: 3
+axes: [groundedness, relevance, citation_correctness]
+scale_min: 1
+scale_max: 5
+input_usd_per_mtok: 0.0
+output_usd_per_mtok: 0.0
+answers_from: reference
+run_id: null

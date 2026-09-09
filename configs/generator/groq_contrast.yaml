@@ -1,11 +1,11 @@
 # The contrast arm for the self-preference probe: the judge's own model,
 # answering the same questions the primary generator answered. If the judge
 # scores this arm materially higher on the same rubric, that gap is the
-# measurement the probe exists to produce.
+# measurement the probe exists to produce. Kept in step with configs/judge/groq.yaml.
 provider: api
-model: openai/gpt-oss-120b
+model: qwen/qwen3.8-27b
 prompt: generation/answer_v1.md
-max_tokens: 1024
+max_tokens: 4096
 temperature: 0.0
 input_usd_per_mtok: 0.0
 output_usd_per_mtok: 0.0

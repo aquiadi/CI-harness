@@ -42,6 +42,7 @@ class LLMJudge:
     max_tokens: int
     temperature: float
     max_attempts: int
+    reasoning_effort: str | None = None
 
     def score(self, item: JudgeInput) -> JudgeScore:
         """Grade one answer, or raise."""
@@ -56,6 +57,7 @@ class LLMJudge:
             ),
             max_tokens=self.max_tokens,
             temperature=self.temperature,
+            reasoning_effort=self.reasoning_effort,
             tool=tool,
             purpose=PURPOSE,
             prompt_hash=self.prompt.sha256,

@@ -54,5 +54,6 @@ def build_generator(
             tokenizer=tokenizer,
             max_tokens=settings.max_tokens,
             temperature=settings.temperature,
+            reasoning_effort=settings.reasoning_effort,
         ),
     )

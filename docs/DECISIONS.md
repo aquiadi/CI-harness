@@ -862,3 +862,46 @@ Cost: two models means two rate-limit budgets on a free tier, and the probe
 now costs a second generation pass over the eval set. Model ids will go stale
 again -- this is the second time in two entries -- so anything that pins one
 carries the curl that lists what a key can actually reach.
+
+## D-0042 -- reasoning_effort is a config value, and the Groq judge is Qwen
+
+2026-09-09, post-M6
+
+`reasoning_effort` is now a field on `ModelRequest`, `JudgeConfig` and
+`GeneratorConfig`, sent by the Groq client only when set. `+experiment=groq`
+judges with `qwen/qwen3.8-27b` at default effort;
+`configs/judge/groq_gptoss.yaml` is the `openai/gpt-oss-120b` arm.
+
+Why: `gpt-oss-120b` would not emit a forced tool call. Groq returned
+`tool_use_failed` with the verdict sitting in `failed_generation` as markdown
+prose -- the model had answered, just not through the tool. A six-case probe
+separated the candidate causes rather than guessing at them: quadrupling
+`max_tokens` did not fix it, removing `strict` did not fix it, and
+`gpt-oss-20b` failed the same way, so it was neither budget nor schema nor
+that one model. Setting `reasoning_effort: low` fixed it, and Qwen complied at
+default effort with no special handling.
+
+So the default judge is Qwen despite being smaller. Buying tool compliance by
+suppressing deliberation is a poor trade for the one component whose whole job
+is to deliberate, and parameter count is not evidence about judge quality.
+Which of the two actually judges better is an empirical question this
+repository exists to answer -- run both against the human labels and compare
+kappa. Neither is validated yet, and this entry is not a claim that one is
+better.
+
+`reasoning_effort` enters the cache key only when set. That is a compatibility
+requirement, not tidiness: every cassette committed before the field existed
+was keyed without it, and including it unconditionally would miss all of them
+and turn replay CI red on a change that alters no request. A test pins the
+unset key against the literal old shape.
+
+Two related fixes fell out. `call_structured` rebuilt the retry request field
+by field, so it silently dropped `reasoning_effort` and every future field --
+it now uses `dataclasses.replace`, and a test asserts the retry carries it.
+And the Anthropic client raises on `reasoning_effort` rather than ignoring it:
+a sampling parameter that silently does nothing makes two runs look comparable
+when they are not.
+
+Cost: a vendor-specific knob in a vendor-neutral request object, which the
+Anthropic client can only refuse. The alternative -- a per-vendor options bag --
+buys generality this repository has no second use for yet.

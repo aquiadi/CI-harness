@@ -1,23 +1,29 @@
 # The judge, served by Groq. `provider: api` means "an LLM behind the model
 # client"; which vendor answers is api.provider.
 #
-# The largest general instruct model Groq serves, chosen deliberately: the
-# judge is the measuring instrument, so it gets the strongest model available
-# and the generator gets a weaker one. `groq/compound` is not a candidate --
-# it is an agentic system that does its own tool calling, and this judge needs
-# a single forced function call it controls.
+# Qwen rather than the larger gpt-oss-120b, on measured behaviour rather than
+# parameter count: gpt-oss will not emit a forced tool call at Groq's default
+# reasoning effort -- it writes the verdict as prose and Groq rejects the
+# response -- and only complies at `reasoning_effort: low`. Buying tool
+# compliance by suppressing the judge's deliberation is a poor trade for the
+# one component whose job is to deliberate. Qwen complies at default effort.
 #
-# IMPORTANT: Groq retires model ids regularly, and `llama-3.3-70b-versatile`
-# was already gone by the time this config was first used. Verify against
-# https://console.groq.com/docs/models, or list what your key can actually
-# reach:
+# configs/judge/groq_gptoss.yaml is the other arm. Which is the better judge
+# is an empirical question, and this repository exists to answer it: run both
+# against the human labels and compare kappa. Neither is validated yet.
+#
+# IMPORTANT: Groq retires model ids regularly -- llama-3.3-70b-versatile was
+# already gone the first time this config was used. List what your key can
+# actually reach:
 #
 #   curl -s https://api.groq.com/openai/v1/models \
 #     -H "Authorization: Bearer $GROQ_API_KEY" | python3 -m json.tool
 provider: api
-model: openai/gpt-oss-120b
+model: qwen/qwen3.8-27b
 prompt: judge/rubric_v1.md
-max_tokens: 1024
+# Reasoning tokens count against this budget before any answer is emitted, so
+# a reasoning model needs materially more headroom than a plain one.
+max_tokens: 4096
 temperature: 0.0
 max_attempts: 3
 axes: [groundedness, relevance, citation_correctness]

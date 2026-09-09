@@ -1,11 +1,15 @@
-# The answering model, served by Groq. Deliberately NOT the judge's model:
-# a judge grading its own output confounds the self-preference probe, which
-# can then only report that one generator scored higher, not why. See
-# configs/generator/groq_large.yaml for the contrast arm.
+# The answering model, served by Groq. Deliberately NOT the judge's model: a
+# judge grading its own output confounds the self-preference probe, which can
+# then only report that one generator scored higher, not why. The contrast arm
+# is configs/generator/groq_contrast.yaml.
+#
+# Generation forces no tool, so the gpt-oss tool-compliance problem documented
+# in configs/judge/groq.yaml does not apply here.
 provider: api
 model: openai/gpt-oss-20b
 prompt: generation/answer_v1.md
-max_tokens: 1024
+# Reasoning tokens are charged against this before the answer starts.
+max_tokens: 4096
 temperature: 0.0
 input_usd_per_mtok: 0.0
 output_usd_per_mtok: 0.0

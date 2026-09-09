@@ -12,7 +12,7 @@ silently becomes a 3 is how an eval harness starts lying.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
@@ -66,16 +66,10 @@ def call_structured[T: BaseModel](
     last_error = ""
 
     for attempt in range(1, max_attempts + 1):
-        attempt_request = ModelRequest(
-            model=request.model,
-            prompt=prompt,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            system=request.system,
-            tool=request.tool,
-            purpose=request.purpose,
-            prompt_hash=request.prompt_hash,
-        )
+        # `replace` rather than a field-by-field rebuild: the retry must differ
+        # from the original in the prompt and nothing else, and a rebuild
+        # silently drops any field added to ModelRequest later.
+        attempt_request = replace(request, prompt=prompt)
         response = client.complete(attempt_request)
         if response.tool_input is None:
             last_error = f"no tool_use block in the response (stop_reason={response.stop_reason})"

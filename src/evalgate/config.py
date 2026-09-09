@@ -95,6 +95,8 @@ class GeneratorConfig:
     prompt: str = MISSING
     max_tokens: int = 1024
     temperature: float = 0.0
+    # Reasoning models only, and vendor-specific. None means "do not send it".
+    reasoning_effort: str | None = None
     input_usd_per_mtok: float = MISSING
     output_usd_per_mtok: float = MISSING
     # Extractive generator only.
@@ -121,6 +123,8 @@ class JudgeConfig:
     prompt: str = MISSING
     max_tokens: int = 1024
     temperature: float = 0.0
+    # Reasoning models only, and vendor-specific. None means "do not send it".
+    reasoning_effort: str | None = None
     max_attempts: int = 3
     axes: list[str] = field(default_factory=list)
     scale_min: int = 1

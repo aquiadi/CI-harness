@@ -72,6 +72,8 @@ def build_payload(request: ModelRequest) -> dict[str, Any]:
         "max_tokens": request.max_tokens,
         "temperature": request.temperature,
     }
+    if request.reasoning_effort is not None:
+        payload["reasoning_effort"] = request.reasoning_effort
     if request.tool is not None:
         payload["tools"] = [tool_to_openai(request.tool)]
         # Force the tool: the judge's contract is that a score arrives through

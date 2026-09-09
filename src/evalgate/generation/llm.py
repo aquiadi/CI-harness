@@ -25,6 +25,7 @@ class LLMGenerator:
     tokenizer: TokenEstimator
     max_tokens: int
     temperature: float
+    reasoning_effort: str | None = None
 
     def generate(self, item: GenerationInput) -> Generated:
         """Answer one question."""
@@ -35,6 +36,7 @@ class LLMGenerator:
                 prompt=self.prompt.render(context=context, question=item.question),
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                reasoning_effort=self.reasoning_effort,
                 purpose=PURPOSE,
                 prompt_hash=self.prompt.sha256,
             )

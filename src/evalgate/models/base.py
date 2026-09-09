@@ -47,6 +47,10 @@ class ModelRequest:
     temperature: float
     system: str | None = None
     tool: ToolSpec | None = None
+    # How hard a reasoning model should think before answering. Vendor-specific
+    # and not universally supported, so None means "do not send it" rather than
+    # any particular default.
+    reasoning_effort: str | None = None
     # Identifies what the call was for (generation, judging, eval generation).
     purpose: str = "generation"
     # The hash of the prompt file this call was rendered from. Part of the
@@ -60,17 +64,22 @@ class ModelRequest:
         calls with identical inputs to the same model are the same call, and
         a prompt edit must never be served from cache.
         """
-        return hash_obj(
-            {
-                "model": self.model,
-                "prompt": self.prompt,
-                "system": self.system,
-                "max_tokens": self.max_tokens,
-                "temperature": self.temperature,
-                "tool": self.tool.to_api() if self.tool else None,
-                "prompt_hash": self.prompt_hash,
-            }
-        )
+        key: dict[str, Any] = {
+            "model": self.model,
+            "prompt": self.prompt,
+            "system": self.system,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "tool": self.tool.to_api() if self.tool else None,
+            "prompt_hash": self.prompt_hash,
+        }
+        # Added to the key only when set, which is not a tidiness choice: every
+        # cassette committed before reasoning_effort existed was keyed without
+        # it, and including it unconditionally would miss every one of them and
+        # turn replay CI red on a change that alters no request.
+        if self.reasoning_effort is not None:
+            key["reasoning_effort"] = self.reasoning_effort
+        return hash_obj(key)
 
 
 @dataclass(frozen=True, slots=True)

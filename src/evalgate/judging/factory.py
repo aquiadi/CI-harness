@@ -61,6 +61,7 @@ def build_judge(cfg: DictConfig, client: ModelClient | None = None) -> Judge:
             scale_max=settings.scale_max,
             max_tokens=settings.max_tokens,
             temperature=settings.temperature,
+            reasoning_effort=settings.reasoning_effort,
             max_attempts=settings.max_attempts,
         ),
     )

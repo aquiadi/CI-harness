@@ -74,6 +74,14 @@ class AnthropicClient:
         """Call the API, retrying transient failures with exponential backoff."""
         import anthropic
 
+        if request.reasoning_effort is not None:
+            # Refused rather than dropped: a sampling parameter that silently
+            # does nothing makes two runs look comparable when they are not.
+            raise ModelError(
+                "reasoning_effort is not supported by the Anthropic client "
+                f"(got {request.reasoning_effort!r}); unset it or use api.provider=groq"
+            )
+
         client = self._sdk()
         last: Exception | None = None
         for attempt in range(1, self.max_retries + 1):
