@@ -212,7 +212,21 @@ def test_the_groq_experiment_wires_the_whole_stack() -> None:
     assert cfg.judge.provider == "api"
     assert cfg.generator.provider == "api"
     assert cfg.embedder.name == "local"
-    assert cfg.judge.model == cfg.generator.model
+
+
+def test_the_judge_does_not_grade_its_own_model_by_default() -> None:
+    """A judge grading its own output confounds the self-preference probe.
+
+    The probe reports a gap between two generators. If one of them is the
+    judge, the gap is evidence about self-preference; if neither is, the gap
+    is uninterpretable, and the config would have quietly made it so.
+    """
+    cfg: DictConfig = load_config(overrides=["+experiment=groq"])
+    assert cfg.judge.model != cfg.generator.model
+    contrast: DictConfig = load_config(
+        overrides=["+experiment=groq", f"generator={cfg.probes.contrast_generator}"]
+    )
+    assert contrast.generator.model == cfg.judge.model
 
 
 def test_the_judge_and_generator_build_on_groq() -> None:

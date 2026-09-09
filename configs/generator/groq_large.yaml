@@ -1,0 +1,11 @@
+# The contrast arm for the self-preference probe: the judge's own model,
+# answering the same questions the primary generator answered. If the judge
+# scores this arm materially higher on the same rubric, that gap is the
+# measurement the probe exists to produce.
+provider: api
+model: openai/gpt-oss-120b
+prompt: generation/answer_v1.md
+max_tokens: 1024
+temperature: 0.0
+input_usd_per_mtok: 0.0
+output_usd_per_mtok: 0.0

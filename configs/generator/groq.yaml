@@ -1,6 +1,9 @@
-# The answering model, served by Groq. See configs/judge/groq.yaml on model ids.
+# The answering model, served by Groq. Deliberately NOT the judge's model:
+# a judge grading its own output confounds the self-preference probe, which
+# can then only report that one generator scored higher, not why. See
+# configs/generator/groq_large.yaml for the contrast arm.
 provider: api
-model: llama-3.3-70b-versatile
+model: openai/gpt-oss-20b
 prompt: generation/answer_v1.md
 max_tokens: 1024
 temperature: 0.0

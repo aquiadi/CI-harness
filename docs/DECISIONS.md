@@ -830,3 +830,35 @@ honest for the free tier but makes the cost axis of the Pareto frontier
 degenerate for Groq runs -- a run at zero cost dominates on that axis by
 construction, and the frontier should be read on quality and latency alone
 until a paid tier gives the cost axis meaning again.
+
+## D-0041 -- The Groq judge is the largest model; the generator is not
+
+2026-09-09, post-M6
+
+`+experiment=groq` judges with `openai/gpt-oss-120b` and generates with
+`openai/gpt-oss-20b`, and `probes.contrast_generator` points at
+`groq_large`, which is the judge's own model answering the same questions.
+
+Why the split: D-0040 shipped with judge and generator on one model, and a
+test asserted they were equal. That was wrong. The self-preference probe
+reports the gap between the judge's mean scores across two generators. That
+gap is evidence about self-preference only if one of the two arms *is* the
+judge; with judge and generator identical there is one arm and the probe
+declines to run, and with two arms that are both not the judge the gap is
+uninterpretable. The config would have quietly produced the uninterpretable
+case. The test now asserts the models differ and that the contrast arm is the
+judge's model, so the wiring cannot silently regress to either failure.
+
+Why these ids: `llama-3.3-70b-versatile` from D-0040 was already retired when
+first used -- it 404'd by name, which is the intended loud failure. Of what
+Groq now serves, `gpt-oss-120b` is the largest general instruct model, and the
+judge is the measuring instrument, so it takes the strongest one available.
+`groq/compound` is excluded on purpose: it is an agentic system that performs
+its own tool calling, and the judge needs a single forced function call whose
+schema it controls. The Qwen 27b models are untried here and may well be
+better; that is an ablation, not a default.
+
+Cost: two models means two rate-limit budgets on a free tier, and the probe
+now costs a second generation pass over the eval set. Model ids will go stale
+again -- this is the second time in two entries -- so anything that pins one
+carries the curl that lists what a key can actually reach.

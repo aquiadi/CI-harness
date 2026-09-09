@@ -16,3 +16,8 @@ defaults:
 
 retriever:
   k: 10
+
+probes:
+  # The judge's own model, so the probe measures self-preference rather than
+  # a difference between two models that are both not the judge.
+  contrast_generator: groq_large

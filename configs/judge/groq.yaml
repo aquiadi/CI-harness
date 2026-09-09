@@ -1,11 +1,21 @@
 # The judge, served by Groq. `provider: api` means "an LLM behind the model
 # client"; which vendor answers is api.provider.
 #
-# IMPORTANT: Groq retires model ids regularly. Verify this one against
-# https://console.groq.com/docs/models before a long run, and override with
-# ARGS="judge.model=<current-id>" if it has been replaced.
+# The largest general instruct model Groq serves, chosen deliberately: the
+# judge is the measuring instrument, so it gets the strongest model available
+# and the generator gets a weaker one. `groq/compound` is not a candidate --
+# it is an agentic system that does its own tool calling, and this judge needs
+# a single forced function call it controls.
+#
+# IMPORTANT: Groq retires model ids regularly, and `llama-3.3-70b-versatile`
+# was already gone by the time this config was first used. Verify against
+# https://console.groq.com/docs/models, or list what your key can actually
+# reach:
+#
+#   curl -s https://api.groq.com/openai/v1/models \
+#     -H "Authorization: Bearer $GROQ_API_KEY" | python3 -m json.tool
 provider: api
-model: llama-3.3-70b-versatile
+model: openai/gpt-oss-120b
 prompt: judge/rubric_v1.md
 max_tokens: 1024
 temperature: 0.0
