@@ -1,0 +1,8 @@
+# The answering model, served by Groq. See configs/judge/groq.yaml on model ids.
+provider: api
+model: llama-3.3-70b-versatile
+prompt: generation/answer_v1.md
+max_tokens: 1024
+temperature: 0.0
+input_usd_per_mtok: 0.0
+output_usd_per_mtok: 0.0

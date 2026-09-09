@@ -1,0 +1,18 @@
+# @package _global_
+# The whole stack on Groq's free tier: real bge embeddings, an LLM generator
+# and an LLM judge, at no cost. One flag so the vendor, the mode and both
+# models cannot drift apart:
+#
+#   export GROQ_API_KEY=gsk_...
+#   make judge PROFILE="+experiment=groq"
+#
+# Uses the default corpus, so it works before `make corpus` has fetched the
+# real EU documents.
+defaults:
+  - override /embedder: local
+  - override /generator: groq
+  - override /judge: groq
+  - override /api: groq
+
+retriever:
+  k: 10

@@ -788,3 +788,45 @@ brittle -- two of the three failed on their own parsing before they found a
 real defect. That is an acceptable price for covering the interface a user
 actually types, but it means a future Makefile restructuring may need the
 parser updated alongside it.
+
+## D-0040 -- Groq joins Anthropic as a live model vendor
+
+2026-09-09, post-M6
+
+`evalgate.models.groq_client.GroqClient` calls Groq's OpenAI-compatible chat
+completions endpoint over httpx, selected by `api.provider: groq`. The
+`+experiment=groq` profile wires the vendor, the mode, both models and the
+local embedder together so they cannot drift apart.
+
+Why: the judge is the expensive component and the harness is only interesting
+once a real model has been through it. Groq's free tier makes the judge
+validation, the bias probes and the calibration set reachable at no cost, which
+is the difference between this repo reporting measured numbers and reporting
+the offline baselines of D-0009. The vendor is a config value, not a fork:
+`ModelClient` already required only `complete()`, so the cassette, cache and
+recording layers are untouched and a run recorded against either vendor
+replays identically.
+
+Two wire-format differences are handled in the client and tested by name.
+Tool arguments arrive as a JSON *string* rather than a parsed object, so
+`_decode_arguments` decodes and rejects anything that is not a mapping --
+returning `None`, never a guess, so the schema retry loop in `judging` sees a
+validation failure rather than fabricated scores. And `tool_choice` is forced
+to the single named function, so a verdict arrives validated or not at all.
+`retry-after` is honoured over exponential backoff and capped at
+`backoff_max_s`; rate limits, not latency, are the binding constraint on a
+free tier.
+
+`judge.provider` and `generator.provider` now spell "api" -- meaning "an LLM
+reached through the model client" -- because "anthropic" named the wrong thing
+once a second vendor existed. "anthropic" is retained as an alias rather than
+migrated: run records are immutable (invariant 3), and a committed record must
+keep loading forever.
+
+Cost: two vendors is two wire formats to keep correct, and Groq retires model
+ids on a schedule of its own, so `configs/judge/groq.yaml` will go stale and
+fail with a 404 rather than silently. Prices are recorded as 0.0, which is
+honest for the free tier but makes the cost axis of the Pareto frontier
+degenerate for Groq runs -- a run at zero cost dominates on that axis by
+construction, and the frontier should be read on quality and latency alone
+until a paid tier gives the cost axis meaning again.

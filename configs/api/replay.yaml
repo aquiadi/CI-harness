@@ -1,5 +1,6 @@
 # Default. Every model call is served from a committed cassette; an unmatched
 # call is an error, never a live request. This is what PR CI runs.
+provider: anthropic
 mode: replay
 cache_enabled: true
 cache_path: ${paths.cache_dir}/model_cache.sqlite

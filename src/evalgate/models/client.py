@@ -81,24 +81,50 @@ class RecordingClient:
         return response
 
 
+PROVIDER_ANTHROPIC = "anthropic"
+PROVIDER_GROQ = "groq"
+PROVIDERS = (PROVIDER_ANTHROPIC, PROVIDER_GROQ)
+
+
+def _live_client(api: ApiConfig) -> ModelClient:
+    """The vendor client for a live call.
+
+    Imported lazily so that replay mode never pays for an SDK it will not use.
+    """
+    if api.provider == PROVIDER_ANTHROPIC:
+        from evalgate.models.anthropic_client import AnthropicClient
+
+        return AnthropicClient(
+            timeout_s=api.timeout_s,
+            max_retries=api.max_retries,
+            backoff_initial_s=api.backoff_initial_s,
+            backoff_max_s=api.backoff_max_s,
+        )
+    if api.provider == PROVIDER_GROQ:
+        from evalgate.models.groq_client import GroqClient
+
+        return GroqClient(
+            timeout_s=api.timeout_s,
+            max_retries=api.max_retries,
+            backoff_initial_s=api.backoff_initial_s,
+            backoff_max_s=api.backoff_max_s,
+        )
+    raise ValueError(f"api.provider must be one of {PROVIDERS}, got {api.provider!r}")
+
+
 def build_model_client(cfg: DictConfig, cassette_dir: Path | None = None) -> ModelClient:
     """Wire the client stack for the configured API mode."""
     api = typed_node(cfg, "api", ApiConfig)
     if api.mode not in MODES:
         raise ValueError(f"api.mode must be one of {MODES}, got {api.mode!r}")
+    if api.provider not in PROVIDERS:
+        raise ValueError(f"api.provider must be one of {PROVIDERS}, got {api.provider!r}")
 
     store = CassetteStore(cassette_dir or resolve_path(cfg, "paths.cassette_dir"))
     if api.mode == MODE_REPLAY:
         return ReplayClient(store=store)
 
-    from evalgate.models.anthropic_client import AnthropicClient
-
-    live: ModelClient = AnthropicClient(
-        timeout_s=api.timeout_s,
-        max_retries=api.max_retries,
-        backoff_initial_s=api.backoff_initial_s,
-        backoff_max_s=api.backoff_max_s,
-    )
+    live = _live_client(api)
     if api.cache_enabled:
         live = CachingClient(inner=live, cache=ResponseCache(resolve_path(cfg, "api.cache_path")))
     if api.mode == MODE_RECORD:

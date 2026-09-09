@@ -13,8 +13,12 @@ from evalgate.judging.llm import LLMJudge
 from evalgate.models.base import ModelClient
 from evalgate.prompts import load_prompt
 
-PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_HEURISTIC = "heuristic"
+# "api" means "an LLM reached through the model client". Which vendor actually
+# answers is api.provider, because the judge does not care -- it takes a
+# ModelClient. "anthropic" is the original spelling of this value and is kept
+# as an alias so existing configs and run records keep working.
+MODEL_CLIENT_PROVIDERS = frozenset({"api", "anthropic"})
 
 
 def build_judge(cfg: DictConfig, client: ModelClient | None = None) -> Judge:
@@ -35,8 +39,11 @@ def build_judge(cfg: DictConfig, client: ModelClient | None = None) -> Judge:
                 scale_max=settings.scale_max,
             ),
         )
-    if settings.provider != PROVIDER_ANTHROPIC:
-        raise ValueError(f"unknown judge provider {settings.provider!r}")
+    if settings.provider not in MODEL_CLIENT_PROVIDERS:
+        raise ValueError(
+            f"unknown judge provider {settings.provider!r}; expected "
+            f"{PROVIDER_HEURISTIC!r} or one of {sorted(MODEL_CLIENT_PROVIDERS)}"
+        )
     if client is None:
         raise ValueError("an LLM judge needs a model client")
 

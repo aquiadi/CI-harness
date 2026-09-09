@@ -150,6 +150,9 @@ class ProbesConfig:
 class ApiConfig:
     """How model calls reach (or do not reach) the network."""
 
+    # Which vendor serves a live call. The judge and generator do not care --
+    # they take a ModelClient -- so the vendor lives here, next to the mode.
+    provider: str = "anthropic"
     mode: str = "replay"
     cache_enabled: bool = True
     cache_path: str = MISSING

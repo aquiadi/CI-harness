@@ -1,4 +1,5 @@
 # Live calls, nothing written. Used by the nightly workflow.
+provider: anthropic
 mode: live
 cache_enabled: true
 cache_path: ${paths.cache_dir}/model_cache.sqlite

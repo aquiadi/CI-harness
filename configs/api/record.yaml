@@ -1,4 +1,5 @@
 # Live calls, written to the cassette directory as they happen.
+provider: anthropic
 mode: record
 cache_enabled: true
 cache_path: ${paths.cache_dir}/model_cache.sqlite

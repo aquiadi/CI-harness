@@ -14,8 +14,10 @@ from evalgate.ingest.tokens import TokenEstimator
 from evalgate.models.base import ModelClient
 from evalgate.prompts import load_prompt
 
-PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_EXTRACTIVE = "extractive"
+# As in the judge factory: "api" is an LLM behind the model client, and
+# api.provider decides the vendor. "anthropic" is the original spelling.
+MODEL_CLIENT_PROVIDERS = frozenset({"api", "anthropic"})
 
 
 def build_generator(
@@ -35,8 +37,11 @@ def build_generator(
                 min_overlap=settings.min_overlap,
             ),
         )
-    if settings.provider != PROVIDER_ANTHROPIC:
-        raise ValueError(f"unknown generator provider {settings.provider!r}")
+    if settings.provider not in MODEL_CLIENT_PROVIDERS:
+        raise ValueError(
+            f"unknown generator provider {settings.provider!r}; expected "
+            f"{PROVIDER_EXTRACTIVE!r} or one of {sorted(MODEL_CLIENT_PROVIDERS)}"
+        )
     if client is None:
         raise ValueError("an LLM generator needs a model client")
     return cast(

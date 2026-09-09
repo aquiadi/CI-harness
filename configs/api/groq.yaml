@@ -1,0 +1,14 @@
+# Live calls to Groq, which has a free tier. Everything the judge needs -- a
+# forced tool call validated against a schema -- Groq supports, so nothing in
+# the harness is weakened to use it. Needs GROQ_API_KEY.
+#
+# Rate limits are the real constraint on a free tier, so max_retries is higher
+# than the Anthropic default and the client honours the server's retry-after.
+provider: groq
+mode: live
+cache_enabled: true
+cache_path: ${paths.cache_dir}/model_cache.sqlite
+max_retries: 6
+backoff_initial_s: 2.0
+backoff_max_s: 60.0
+timeout_s: 120.0
