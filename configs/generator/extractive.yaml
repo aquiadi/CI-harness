@@ -1,0 +1,14 @@
+# The no-model baseline: quote the best-matching sentences from the top-ranked
+# chunks, with citations. Free, deterministic, offline. Any generator worth its
+# bill has to beat it, and it is what lets the ablation sweep and the gate run
+# without credentials. See evalgate/generation/extractive.py.
+provider: extractive
+model: extractive-v1
+prompt: generation/answer_v1.md
+max_tokens: 0
+temperature: 0.0
+max_sentences: 3
+max_chunks: 3
+min_overlap: 2
+input_usd_per_mtok: 0.0
+output_usd_per_mtok: 0.0

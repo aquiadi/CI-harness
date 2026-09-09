@@ -1,0 +1,75 @@
+{
+  "api_mode": "replay",
+  "config_hash": "daa3c927a0c69c6b658f1312b0ec6934831953b09d0b66634d84e52915141ee6",
+  "corpus_hash": "83d3414da810ec3ef94afef27928fc181af72e37801eb21d1de760d5aa691550",
+  "corpus_name": "cbam_synthetic",
+  "created_at": "2026-09-09T01:35:48Z",
+  "evalset_hashes": {
+    "answers": "8c83285505f240ce866f383410bed415652bc88c8c14e669471a95e2c7dad48c",
+    "retrieval": "f2bd3bea7659224a98149da3da80ff8a45fcda714067d1fe084f95b88a57b93b"
+  },
+  "fingerprint": {
+    "chunker": {
+      "name": "fixed_token",
+      "overlap_tokens": 32,
+      "target_tokens": 256,
+      "tokenizer": {
+        "name": "regex_word",
+        "pattern": "\\w+|[^\\w\\s]",
+        "tokens_per_word": 1.3
+      }
+    },
+    "embedder": {
+      "dim": 384,
+      "document_prefix": "",
+      "model": "hashed-ngram-projection-v1",
+      "name": "hashed",
+      "ngram_range": [
+        1,
+        2
+      ],
+      "normalize": true,
+      "query_prefix": "",
+      "seed": 0
+    },
+    "generator": {
+      "max_chunks": 3,
+      "max_sentences": 3,
+      "min_overlap": 2,
+      "model": "extractive-v1",
+      "name": "extractive"
+    },
+    "judge": {
+      "axes": [
+        "groundedness",
+        "relevance",
+        "citation_correctness"
+      ],
+      "model": "rule-based-v1",
+      "name": "heuristic",
+      "scale": [
+        1,
+        5
+      ]
+    },
+    "retriever": {
+      "k": 3,
+      "name": "bm25",
+      "sparse": {
+        "b": 0.75,
+        "k1": 1.2,
+        "name": "bm25_default",
+        "stemmer": "none",
+        "stopwords": "en"
+      }
+    }
+  },
+  "index_hash": "6af62afaacd720edbfc9776bbfb941cb46b4e884ead3b987229910e83d513eae",
+  "notes": null,
+  "prompt_hashes": {
+    "generator": "9b957d00ba63a2c16c4eedc8863057dff30ad885dae34130de82c65e14eff4bc",
+    "judge": "035548ced080f92991f0ed2fe8912ede87c0f81e5ec0d6b61ba1b9bc88c984eb"
+  },
+  "replayed": false,
+  "run_id": "20260909T013548Z-daa3c927a0c6"
+}

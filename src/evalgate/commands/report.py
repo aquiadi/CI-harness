@@ -12,11 +12,15 @@ from rich.console import Console
 from evalgate.config import load_config, resolve_path
 from evalgate.hashing import short
 from evalgate.pipeline import build_stack
-from evalgate.reporting.calibration import build_report, write_report
+from evalgate.reporting.calibration import build_report as build_calibration
+from evalgate.reporting.calibration import write_report
+from evalgate.reporting.pareto import build_report as build_pareto
+from evalgate.reporting.pareto import load_summaries, partition_comparable
 
 console = Console()
 
 CALIBRATION_FILE = "judge_calibration.md"
+PARETO_FILE = "pareto.md"
 
 
 def run(overrides: list[str]) -> int:
@@ -33,8 +37,16 @@ def run(overrides: list[str]) -> int:
         "index": short(stack.index.meta.index_hash),
         "api mode": str(cfg.api.mode),
     }
-    content = build_report(cfg, stack.tokenizer, summary)
-    path = reports_dir / CALIBRATION_FILE
-    changed = write_report(path, content)
-    console.print(f"{'wrote' if changed else 'unchanged'} {path}")
+    calibration_path = reports_dir / CALIBRATION_FILE
+    changed = write_report(calibration_path, build_calibration(cfg, stack.tokenizer, summary))
+    console.print(f"{'wrote' if changed else 'unchanged'} {calibration_path}")
+
+    summaries = load_summaries(resolve_path(cfg, "paths.runs_dir"))
+    comparable, excluded = partition_comparable(summaries)
+    pareto_path = reports_dir / PARETO_FILE
+    changed = write_report(pareto_path, build_pareto(comparable, excluded, reports_dir))
+    console.print(
+        f"{'wrote' if changed else 'unchanged'} {pareto_path} "
+        f"({len(comparable)} comparable runs, {len(excluded)} excluded)"
+    )
     return 0

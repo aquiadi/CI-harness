@@ -20,6 +20,7 @@ from evalgate.errors import EvalgateError
 
 # verb -> (module, callable). Extended as milestones land.
 COMMANDS: dict[str, tuple[str, str]] = {
+    "ablate": ("evalgate.commands.ablate", "run"),
     "config": ("evalgate.commands.show_config", "run"),
     "ingest": ("evalgate.commands.ingest", "run"),
     "gen-eval": ("evalgate.commands.gen_eval", "run"),

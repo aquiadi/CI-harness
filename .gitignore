@@ -15,9 +15,10 @@ data/corpus/raw/*
 data/corpus/processed/
 data/index/
 
-# Run artifacts are immutable but large; only curated ones are committed.
-runs/*
-!runs/.gitkeep
+# Run artifacts are immutable. The ablation sweep behind reports/pareto.md is
+# committed (1.3 MB) so the report is verifiable from the repository; ad-hoc
+# runs are not, so `make eval` does not dirty the tree.
+runs/scratch/
 
 # Local caches
 .cache/

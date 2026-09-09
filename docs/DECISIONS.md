@@ -495,3 +495,83 @@ uncited. That is a defensible reading -- the generation prompt specifies the
 format -- but it does mean the citation axis is partly measuring format
 compliance. The heuristic judge's citation score in particular should be read
 that way.
+
+## D-0026 -- An extractive generator ships as the baseline
+
+2026-09-09, M4
+
+`generator=extractive` answers by quoting the sentences of the top-ranked
+chunks that overlap the question, with citations attached. No model, no cost,
+no network.
+
+Why: it is the floor any generator has to clear. If a model's answers do not
+score better than "quote the best-matching sentences", the model is not adding
+anything and the ablation should say so rather than leaving the reader to
+assume. As with the heuristic judge (D-0021), it also lets the whole
+measurement path -- sweep, frontier, gate -- run with no credentials, which is
+the same property that makes pull-request CI free.
+
+Cost: its answers are stilted, it cannot synthesise across chunks, and it
+cannot decline for the right reason. Every number currently in
+`reports/pareto.md` was produced with it, so the absolute quality figures are a
+floor, not a claim about the system with an API generator. The relative
+ordering of retrieval configurations is what the sweep is measuring, and that
+is not affected by which generator sits downstream of it.
+
+## D-0027 -- Serving latency and cost exclude judging
+
+2026-09-09, M4
+
+`latency_s` on an answer row is retrieval plus generation. Judge latency, judge
+tokens and judge spend are recorded in their own columns and aggregated
+separately as `eval_cost_usd`.
+
+Why: the Pareto frontier is a serving decision. A user waits for retrieval and
+generation; they do not wait for the judge, and they do not pay for it. Folding
+evaluation cost into cost-per-query would make every configuration look
+several times more expensive than it is and would make the frontier depend on
+which judge was configured.
+
+Cost: the reported cost per query is not the total cost of running this repo.
+The judge is often the larger bill during development, and `eval_cost_usd`
+exists so that is visible rather than hidden.
+
+## D-0028 -- Cost is reported twice: measured and projected
+
+2026-09-09, M4
+
+Each run records `cost_usd` (from API usage, and therefore zero when no API
+call was made) and `projected_cost_usd` (this run's context and answer tokens
+priced at the reference model's rates in `configs/pricing/`). The report keeps
+them in separate columns and the frontier is plotted on whichever varies, with
+the caption saying which.
+
+Why: with an offline generator the measured cost of every configuration is
+zero, which makes a cost frontier meaningless -- yet the configurations do
+differ in what they would cost, because k and the chunker change the context
+size by a factor of five. Reporting only the measured zero would hide a real
+difference; reporting the projection as if it were measured would be a lie.
+Reporting both, labelled, is neither.
+
+Cost: two columns to explain, and a reader who skims might take the projection
+for a measurement. The column headers and the section text both say
+"projected", and the projection is priced at a model that is named.
+
+## D-0029 -- A sweep cell that cannot run is recorded, not fatal
+
+2026-09-09, M4
+
+`make ablate` catches `BackendUnavailableError` per cell -- the error raised
+when an optional dependency is missing, such as the cross-encoder reranker
+needing `make ml` -- records the cell as unmeasured with the reason, and
+continues. Every other exception propagates.
+
+Why: dying at cell 20 of 36 wastes the 19 measurements already made and tells
+the user one thing at a time. Recording the skip keeps the report honest about
+what was and was not measured; the current `reports/pareto.md` covers 27 of 36
+cells, and the nine rerank cells are listed as requiring the ml extra.
+
+Cost: a caught exception is a place where a real problem could hide. It is
+narrowed to one exception type that means exactly "an optional dependency is
+not installed", and the skipped cells are printed and reported rather than
+silently absent.

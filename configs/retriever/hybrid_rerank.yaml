@@ -8,6 +8,7 @@ sparse_weight: 1.0
 rerank:
   enabled: true
   _target_: evalgate.retrieval.rerank.CrossEncoderReranker
+  name: cross_encoder
   model: BAAI/bge-reranker-base
   top_n: 32
   batch_size: 32

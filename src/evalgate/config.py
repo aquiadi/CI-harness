@@ -96,6 +96,19 @@ class GeneratorConfig:
     temperature: float = 0.0
     input_usd_per_mtok: float = MISSING
     output_usd_per_mtok: float = MISSING
+    # Extractive generator only.
+    max_sentences: int = 3
+    max_chunks: int = 3
+    min_overlap: int = 2
+
+
+@dataclass
+class PricingConfig:
+    """Reference rates for projecting what a configuration would cost."""
+
+    model: str = MISSING
+    input_usd_per_mtok: float = MISSING
+    output_usd_per_mtok: float = MISSING
 
 
 @dataclass
@@ -222,6 +235,7 @@ class RootConfig:
     retriever: Any = MISSING
     generator: GeneratorConfig = field(default_factory=GeneratorConfig)
     judge: JudgeConfig = field(default_factory=JudgeConfig)
+    pricing: PricingConfig = field(default_factory=PricingConfig)
     probes: ProbesConfig = field(default_factory=ProbesConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
     gate: GateConfig = field(default_factory=GateConfig)

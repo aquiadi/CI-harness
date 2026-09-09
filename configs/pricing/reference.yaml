@@ -1,0 +1,7 @@
+# Rates used to price a configuration's token footprint when the generator makes
+# no API call (the extractive baseline, or a replayed run). This is what the
+# configuration WOULD cost per query through the API; it is a projection and is
+# labelled as one everywhere it appears. Measured cost still comes from usage.
+model: claude-sonnet-4-6
+input_usd_per_mtok: 3.0
+output_usd_per_mtok: 15.0
