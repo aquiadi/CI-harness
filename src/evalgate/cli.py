@@ -40,7 +40,7 @@ commands:
 {commands}
 
 Any config key can be overridden positionally, e.g.
-  evalgate config retriever=hybrid_rerank retriever.k=16
+  evalgate config retriever=hybrid_rerank retriever.k=10
 """
 
 
