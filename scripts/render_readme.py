@@ -132,9 +132,16 @@ def _calibration_rows(
     return table(headers, rows), label_set.name, covered, " / ".join(headline)
 
 
-def build_values(root: Path) -> dict[str, Any]:
-    """Every value the template can reference."""
-    cfg = load_config(overrides=["+experiment=baseline"])
+DEFAULT_OVERRIDES = ["+experiment=baseline"]
+
+
+def build_values(root: Path, overrides: list[str] | None = None) -> dict[str, Any]:
+    """Every value the template can reference.
+
+    Takes the same hydra overrides as the rest of the pipeline, so a README
+    rendered after freezing a live baseline reports the live numbers.
+    """
+    cfg = load_config(overrides=DEFAULT_OVERRIDES if overrides is None else overrides)
     baseline = read_baseline(resolve_path(cfg, "gate.baseline_path"))
     metrics = baseline.metrics
     judge = typed_node(cfg, "judge", JudgeConfig)
@@ -189,7 +196,7 @@ def build_values(root: Path) -> dict[str, Any]:
     }
 
 
-def render(root: Path) -> str:
+def render(root: Path, overrides: list[str] | None = None) -> str:
     """Render the template against the artifacts."""
     template = Prompt(
         name=TEMPLATE,
@@ -197,14 +204,14 @@ def render(root: Path) -> str:
         text=(root / TEMPLATE).read_text(encoding="utf-8"),
         sha256="",
     )
-    return template.render(**build_values(root))
+    return template.render(**build_values(root, overrides))
 
 
 def main(argv: list[str] | None = None) -> int:
     """Write README.md, reporting whether anything changed."""
-    del argv
+    overrides = list(sys.argv[1:] if argv is None else argv)
     root = Path(__file__).resolve().parent.parent
-    content = render(root)
+    content = render(root, overrides or None)
     output = root / OUTPUT
     changed = not output.is_file() or output.read_text(encoding="utf-8") != content
     if changed:

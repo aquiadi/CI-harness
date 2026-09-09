@@ -49,16 +49,16 @@ config:  ## Print the resolved config plus the hashes it implies
 	$(PY) -m evalgate.cli config $(PROFILE) $(ARGS)
 
 gen-eval:  ## Draft retrieval eval candidates with a model, for review
-	$(PY) -m evalgate.cli gen-eval $(ARGS)
+	$(PY) -m evalgate.cli gen-eval $(PROFILE) $(ARGS)
 
 seed:  ## Materialise the hand-written seed eval sets into data/eval/
-	$(PY) scripts/seed_evalsets.py $(ARGS)
+	$(PY) scripts/seed_evalsets.py $(PROFILE) $(ARGS)
 
 record:  ## Re-record the API cassettes that replay-mode CI plays back
 	$(PY) -m evalgate.cli eval +experiment=live api=record $(ARGS)
 
 corpus:  ## Download pinned source documents and write the SHA256 manifest
-	$(PY) scripts/fetch_corpus.py $(ARGS)
+	$(PY) scripts/fetch_corpus.py $(PROFILE) $(ARGS)
 
 ingest:  ## PDF -> text -> chunks
 	$(PY) -m evalgate.cli ingest $(PROFILE) $(ARGS)
@@ -79,10 +79,10 @@ ablate:  ## Sweep the config matrix, one immutable parquet per run
 	$(PY) -m evalgate.cli ablate $(PROFILE) $(ARGS)
 
 label:  ## Terminal labelling CLI (resumable, saves incrementally)
-	$(PY) -m evalgate.cli label $(ARGS)
+	$(PY) -m evalgate.cli label $(PROFILE) $(ARGS)
 
 readme:  ## Regenerate README.md from README.template.md and the artifacts
-	$(PY) scripts/render_readme.py
+	$(PY) scripts/render_readme.py $(PROFILE) $(ARGS)
 
 report:  ## Regenerate reports/ from the run artifacts
 	$(PY) -m evalgate.cli report $(PROFILE) $(ARGS)

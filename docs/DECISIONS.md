@@ -761,3 +761,30 @@ Cost: a genuine performance regression in chunking will no longer surface as a
 test failure. It was never a reliable signal for that -- the deadline measured
 config composition, not chunking -- and latency that matters is measured in the
 run record, where p50 and p95 are recorded per query.
+
+## D-0039 -- The Makefile's own wiring is tested
+
+2026-09-09, post-M6
+
+`tests/test_makefile.py` asserts that every pipeline target passes both
+`$(PROFILE)` and `$(ARGS)` through to the command it wraps, that PROFILE
+defaults to the frozen baseline experiment, and that every target is declared
+`.PHONY`.
+
+Why: `make gen-eval PROFILE="+experiment=live"` silently ignored PROFILE and
+ran the default stack. The user got a plausible-looking run against the wrong
+corpus, embedder and models, and the only clue was the echoed command line.
+That is the same defect class the gate exists to prevent -- a flag that appears
+to work and does something else -- and it had gone unnoticed because the
+Makefile was the one interface with no tests behind it. `label`, `seed`,
+`readme` and `corpus` had the same gap; `readme` additionally accepted no
+overrides at all, so `scripts/render_readme.py` now takes them.
+
+`record` is exempt by name: it pins `+experiment=live` deliberately, because
+its whole purpose is recording cassettes for the live configuration.
+
+Cost: the tests parse the Makefile with regular expressions, which is
+brittle -- two of the three failed on their own parsing before they found a
+real defect. That is an acceptable price for covering the interface a user
+actually types, but it means a future Makefile restructuring may need the
+parser updated alongside it.
