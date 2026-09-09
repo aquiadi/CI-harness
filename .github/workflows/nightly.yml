@@ -1,0 +1,81 @@
+name: nightly live evaluation
+
+# Pull-request CI is deterministic, offline and free; it can only catch a
+# regression that the committed cassettes and the offline stack can see. This
+# job is the other half: once a day it runs the real system -- real documents,
+# real embeddings, real API calls -- against its own frozen baseline, and opens
+# an issue when the gate fails. Drift that only shows up against a live model
+# is found here, at a cost of one run a day rather than one per push.
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  live:
+    name: live run against baseline.live.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Sync dependencies, including the local model stack
+        run: uv sync --frozen --extra ml
+
+      - name: Fetch and verify the pinned corpus
+        run: make corpus
+
+      - name: Run the live evaluation
+        id: live
+        run: make eval ARGS="+experiment=live"
+
+      - name: Upload the gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-gate-report
+          path: |
+            reports/gate.md
+            reports/gate.json
+            data/corpus/manifest.json
+
+      - name: Open an issue when the gate fails
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = 'The nightly live evaluation failed before it produced a gate report. ';
+            body += 'See the workflow run for details.';
+            try {
+              body = fs.readFileSync('reports/gate.md', 'utf8');
+            } catch (error) {
+              core.info('no gate report on disk: ' + error.message);
+            }
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            const { owner, repo } = context.repo;
+            const title = `Nightly live evaluation failed (${new Date().toISOString().slice(0, 10)})`;
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              labels: ['quality-gate'],
+              body: `${body}\n\n[Workflow run](${url})`,
+            });

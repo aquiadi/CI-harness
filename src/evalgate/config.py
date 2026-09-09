@@ -37,6 +37,7 @@ class PathsConfig:
     index_dir: str = MISSING
     eval_dir: str = MISSING
     runs_dir: str = MISSING
+    scratch_runs_dir: str = MISSING
     reports_dir: str = MISSING
     cache_dir: str = MISSING
     prompts_dir: str = MISSING

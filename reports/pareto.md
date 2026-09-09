@@ -14,7 +14,7 @@
 
 |  | config | quality | recall@k | nDCG@10 | MRR | grounded | relevant | citations | p50 ms | p95 ms | ctx tok | measured $/q | projected $/q |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| * | fixed/hybrid/k=10 | 0.828 | 0.867 | 0.437 | 0.310 | 3.87 | 3.80 | 5.00 | 8.7 | 10.6 | 2793 | 0.000000 | 0.010471 |
+| * | fixed/hybrid/k=10 | 0.828 | 0.867 | 0.437 | 0.310 | 3.87 | 3.80 | 5.00 | 7.9 | 11.4 | 2793 | 0.000000 | 0.010471 |
 | * | fixed/bm25/k=10 | 0.807 | 0.733 | 0.483 | 0.405 | 3.93 | 3.80 | 5.00 | 0.6 | 0.8 | 2786 | 0.000000 | 0.010347 |
 | * | section/bm25/k=10 | 0.792 | 0.733 | 0.578 | 0.531 | 3.73 | 3.80 | 5.00 | 0.5 | 0.8 | 1852 | 0.000000 | 0.007510 |
 | * | section/hybrid/k=10 | 0.785 | 0.733 | 0.559 | 0.509 | 3.73 | 3.67 | 5.00 | 7.8 | 10.6 | 1895 | 0.000000 | 0.007396 |
@@ -60,7 +60,7 @@ Measured cost is zero for every run above because the generator makes no API cal
 
 | frontier | config | quality | projected $/q | p95 ms |
 | --- | --- | --- | --- | --- |
-| cost | fixed/hybrid/k=10 | 0.828 | 0.010471 | 10.6 |
+| cost | fixed/hybrid/k=10 | 0.828 | 0.010471 | 11.4 |
 | cost | fixed/bm25/k=10 | 0.807 | 0.010347 | 0.8 |
 | cost | section/bm25/k=10 | 0.792 | 0.007510 | 0.8 |
 | cost | section/hybrid/k=10 | 0.785 | 0.007396 | 10.6 |
@@ -68,7 +68,7 @@ Measured cost is zero for every run above because the generator makes no API cal
 | cost | section/bm25/k=3 | 0.765 | 0.003712 | 0.7 |
 | cost | section/hybrid/k=3 | 0.727 | 0.003421 | 18.2 |
 | cost | section/dense/k=3 | 0.663 | 0.003316 | 9.2 |
-| latency | fixed/hybrid/k=10 | 0.828 | 0.010471 | 10.6 |
+| latency | fixed/hybrid/k=10 | 0.828 | 0.010471 | 11.4 |
 | latency | fixed/bm25/k=10 | 0.807 | 0.010347 | 0.8 |
 | latency | section/bm25/k=10 | 0.792 | 0.007510 | 0.8 |
 | latency | fixed/bm25/k=5 | 0.770 | 0.006183 | 0.7 |

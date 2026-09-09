@@ -1,0 +1,17 @@
+# @package _global_
+# The configuration frozen in baseline.json: the winner of the 27-configuration
+# sweep in reports/pareto.md, on the offline stack so that `make eval` runs
+# identically on a laptop and in pull-request CI with no credentials.
+#
+# `make eval` selects this, so the command a developer runs is the command that
+# gates the build. Changing it here without re-running `make freeze` makes the
+# gate compare two different systems, which the gate detects and refuses.
+defaults:
+  - override /chunker: fixed_token
+  - override /retriever: hybrid
+  - override /embedder: hashed
+  - override /generator: extractive
+  - override /judge: heuristic
+
+retriever:
+  k: 10

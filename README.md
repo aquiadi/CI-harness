@@ -40,6 +40,54 @@ are unreachable. See `data/corpus/synthetic/README.md`. `corpus=cbam` selects
 the real EU instruments, pinned by SHA256 in `data/corpus/manifest.json`. Every
 run record and every report names the corpus it used.
 
+## The CI split: replay on every pull request, live once a night
+
+This is the most interesting engineering decision in the project, so it gets
+the most space.
+
+An evaluation harness that calls a model has a problem: the thing that makes it
+valuable -- running on every pull request -- is also what makes it expensive and
+flaky. Running the full suite live on every push costs money per push, takes
+minutes, and fails for reasons that have nothing to do with the change under
+review: a rate limit, a timeout, a model that is one token less deterministic
+than it was yesterday. Teams respond by running the suite nightly instead, and
+a gate that runs after the merge is not a gate.
+
+evalgate splits the difference:
+
+**Every pull request replays.** All model access goes through one client stack
+with three modes. In `replay` -- the default, and what CI runs -- a call is
+served from a committed cassette: one JSON file per call, holding the request
+and the response, reviewable in a diff. An unmatched call is an error, never a
+network request. The result is a full evaluation, including generation, judging
+and the quality gate, that is deterministic, takes seconds, costs nothing, and
+cannot fail because of somebody else's rate limit. A change that alters a
+prompt, a model or a config surfaces as a cassette miss with the command to
+re-record, rather than as a surprise invoice.
+
+**One scheduled job runs live.** `.github/workflows/nightly.yml` fetches the
+real corpus, installs the local encoder, and runs the same suite against the
+real API with its own frozen baseline (`baseline.live.json`). If the gate fails
+it opens an issue. Drift that only a live model can show -- a provider-side
+model update, a change in refusal behaviour, latency creep -- is found there, at
+a cost of one run a day rather than one per push.
+
+The two halves catch different things and neither substitutes for the other.
+Replay catches "this change made retrieval worse", which is most changes. Live
+catches "the world moved underneath us", which is rarer and slower-moving. The
+split is what makes it affordable to gate every pull request on quality at all.
+
+`make record` re-records the cassettes; the recording is a reviewable diff, so
+a change in what the model says is something a human sees rather than something
+that silently shifts a number.
+
+*State of the cassettes in this repository:* empty. The environment this repo
+was built in had no API credentials (`docs/DECISIONS.md`, D-0009), so no live
+call was ever made and there was nothing honest to record. The replay path is
+exercised by unit tests, and the committed gate runs on the offline stack --
+the extractive generator and the rule-based judge -- which needs no cassettes at
+all. Recording them is one command for anyone with a key.
+
 ## Tooling we deliberately skipped
 
 No DVC. No MLflow. Both would be ceremony here, and the reason is worth stating

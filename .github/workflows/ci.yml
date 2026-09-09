@@ -9,10 +9,8 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # PR CI never spends money: model calls are served from committed cassettes
-  # and an unmatched call is an error. See docs/DECISIONS.md D-0009.
-  EVALGATE_API_MODE: replay
+permissions:
+  contents: read
 
 jobs:
   check:
@@ -45,3 +43,71 @@ jobs:
 
       - name: Tests
         run: uv run pytest -m "not slow and not live"
+
+  gate:
+    name: quality gate (replay)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      # No credentials are available to this job and none are needed. The
+      # baseline experiment runs on the offline stack, and any model call would
+      # be served from a committed cassette or fail; it can never reach the
+      # network. See the README section on the record/replay split.
+      - name: Run the quality gate
+        id: gate
+        run: make eval
+
+      - name: Upload the gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-report
+          path: |
+            reports/gate.md
+            reports/gate.json
+
+      # Same-repo pull requests only: a fork's token cannot write comments, and
+      # granting one that could is how a PR-triggered workflow becomes an
+      # escalation path.
+      - name: Comment the metrics delta on the pull request
+        if: >-
+          always() && github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- evalgate-quality-gate -->';
+            const body = marker + '\n' + fs.readFileSync('reports/gate.md', 'utf8');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(
+              github.rest.issues.listComments, { owner, repo, issue_number }
+            );
+            const existing = comments.find(
+              (comment) => comment.user.type === 'Bot' && comment.body.includes(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment(
+                { owner, repo, comment_id: existing.id, body }
+              );
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

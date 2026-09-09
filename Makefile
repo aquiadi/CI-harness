@@ -6,8 +6,14 @@ RUN := $(UV) run
 PY := $(RUN) python
 ARGS ?=
 
+# Which stack the pipeline targets run. The default is the configuration frozen
+# in baseline.json: the offline stack, so every target works on a fresh clone
+# with no network and no API key. `PROFILE="+experiment=live"` selects the real
+# system (real documents, bge embeddings, API generator and judge).
+PROFILE ?= +experiment=baseline
+
 .DEFAULT_GOAL := help
-.PHONY: help install dev ml test check fmt lint types config seed gen-eval judge corpus ingest index \
+.PHONY: help install dev ml test check fmt lint types config seed gen-eval judge freeze record corpus ingest index \
         eval ablate label report gate-demo serve docker clean
 
 help:  ## List targets
@@ -40,7 +46,7 @@ test:  ## Run the test suite, excluding slow and live tests
 check: lint types test  ## The pre-commit gate. Never commit red.
 
 config:  ## Print the resolved config plus the hashes it implies
-	$(PY) -m evalgate.cli config $(ARGS)
+	$(PY) -m evalgate.cli config $(PROFILE) $(ARGS)
 
 gen-eval:  ## Draft retrieval eval candidates with a model, for review
 	$(PY) -m evalgate.cli gen-eval $(ARGS)
@@ -48,32 +54,38 @@ gen-eval:  ## Draft retrieval eval candidates with a model, for review
 seed:  ## Materialise the hand-written seed eval sets into data/eval/
 	$(PY) scripts/seed_evalsets.py $(ARGS)
 
+record:  ## Re-record the API cassettes that replay-mode CI plays back
+	$(PY) -m evalgate.cli eval +experiment=live api=record $(ARGS)
+
 corpus:  ## Download pinned source documents and write the SHA256 manifest
 	$(PY) scripts/fetch_corpus.py $(ARGS)
 
 ingest:  ## PDF -> text -> chunks
-	$(PY) -m evalgate.cli ingest $(ARGS)
+	$(PY) -m evalgate.cli ingest $(PROFILE) $(ARGS)
 
 index:  ## Build the vector + sparse indexes (no-op if the corpus is unchanged)
-	$(PY) -m evalgate.cli index $(ARGS)
+	$(PY) -m evalgate.cli index $(PROFILE) $(ARGS)
 
 judge:  ## Score the answer eval set with the configured judge
-	$(PY) -m evalgate.cli judge $(ARGS)
+	$(PY) -m evalgate.cli judge $(PROFILE) $(ARGS)
+
+freeze:  ## Measure the current config and write baseline.json
+	$(PY) -m evalgate.cli freeze $(PROFILE) $(ARGS)
 
 eval:  ## Run the eval suite against baseline.json; nonzero exit on regression
-	$(PY) -m evalgate.cli eval $(ARGS)
+	$(PY) -m evalgate.cli eval $(PROFILE) $(ARGS)
 
 ablate:  ## Sweep the config matrix, one immutable parquet per run
-	$(PY) -m evalgate.cli ablate $(ARGS)
+	$(PY) -m evalgate.cli ablate $(PROFILE) $(ARGS)
 
 label:  ## Terminal labelling CLI (resumable, saves incrementally)
 	$(PY) -m evalgate.cli label $(ARGS)
 
 report:  ## Regenerate reports/ from the run artifacts
-	$(PY) -m evalgate.cli report $(ARGS)
+	$(PY) -m evalgate.cli report $(PROFILE) $(ARGS)
 
 gate-demo:  ## Prove the gate fails on a deliberately degraded retriever
-	$(PY) -m evalgate.cli gate_demo $(ARGS)
+	$(PY) -m evalgate.cli gate-demo $(PROFILE) $(ARGS)
 
 serve:  ## Run the FastAPI layer
 	$(RUN) uvicorn evalgate.serve.app:app --host 0.0.0.0 --port 8000

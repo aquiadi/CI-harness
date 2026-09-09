@@ -63,15 +63,17 @@ class RunMeta(BaseModel):
     notes: str | None = None
 
     def comparable_to(self, other: RunMeta) -> bool:
-        """Two runs are comparable only if everything upstream of the numbers matches.
+        """Whether two runs measured the same thing on the same ground.
 
-        Deliberately strict. A footnote saying "these used different prompts"
-        is not a substitute for refusing to put them in one table.
+        The ground is the corpus, the prompts and the eval sets. The index hash
+        is deliberately not part of it: changing the chunker changes the index,
+        and comparing chunkers is the point of the sweep. A footnote saying
+        "these used different prompts" is not a substitute for refusing to put
+        them in one table.
         """
         return (
             self.corpus_hash == other.corpus_hash
             and self.prompt_hashes == other.prompt_hashes
-            and self.index_hash == other.index_hash
             and self.evalset_hashes == other.evalset_hashes
         )
 

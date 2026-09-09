@@ -86,6 +86,20 @@ def load_summaries(runs_root: Path) -> list[RunSummary]:
     return summaries
 
 
+def latest_per_config(summaries: Sequence[RunSummary]) -> list[RunSummary]:
+    """One row per configuration: the most recent measurement of each.
+
+    Re-measuring a configuration is normal -- freezing a baseline does it, and
+    so does re-running a cell after a change. The runs are all kept on disk,
+    but the table shows the current measurement of each configuration rather
+    than the same cell twice.
+    """
+    newest: dict[str, RunSummary] = {}
+    for summary in sorted(summaries, key=lambda item: item.run_id):
+        newest[summary.meta.config_hash] = summary
+    return sorted(newest.values(), key=lambda item: item.run_id)
+
+
 def partition_comparable(
     summaries: Sequence[RunSummary],
 ) -> tuple[list[RunSummary], list[RunSummary]]:

@@ -1,0 +1,118 @@
+{
+  "api_mode": "replay",
+  "config_hash": "4b8a0ad44f1500303791e21a0be1ab7a405cc4e04a9e785a272541979f08a5ef",
+  "corpus_hash": "83d3414da810ec3ef94afef27928fc181af72e37801eb21d1de760d5aa691550",
+  "corpus_name": "cbam_synthetic",
+  "evalset_hashes": {
+    "answers": "8c83285505f240ce866f383410bed415652bc88c8c14e669471a95e2c7dad48c",
+    "retrieval": "f2bd3bea7659224a98149da3da80ff8a45fcda714067d1fe084f95b88a57b93b"
+  },
+  "fingerprint": {
+    "chunker": {
+      "name": "fixed_token",
+      "overlap_tokens": 32,
+      "target_tokens": 256,
+      "tokenizer": {
+        "name": "regex_word",
+        "pattern": "\\w+|[^\\w\\s]",
+        "tokens_per_word": 1.3
+      }
+    },
+    "embedder": {
+      "dim": 384,
+      "document_prefix": "",
+      "model": "hashed-ngram-projection-v1",
+      "name": "hashed",
+      "ngram_range": [
+        1,
+        2
+      ],
+      "normalize": true,
+      "query_prefix": "",
+      "seed": 0
+    },
+    "generator": {
+      "max_chunks": 3,
+      "max_sentences": 3,
+      "min_overlap": 2,
+      "model": "extractive-v1",
+      "name": "extractive"
+    },
+    "judge": {
+      "axes": [
+        "groundedness",
+        "relevance",
+        "citation_correctness"
+      ],
+      "model": "rule-based-v1",
+      "name": "heuristic",
+      "scale": [
+        1,
+        5
+      ]
+    },
+    "retriever": {
+      "candidate_k": 32,
+      "dense_weight": 1.0,
+      "embedder": {
+        "dim": 384,
+        "document_prefix": "",
+        "model": "hashed-ngram-projection-v1",
+        "name": "hashed",
+        "ngram_range": [
+          1,
+          2
+        ],
+        "normalize": true,
+        "query_prefix": "",
+        "seed": 0
+      },
+      "k": 10,
+      "name": "hybrid",
+      "rerank_top_n": null,
+      "reranker": null,
+      "rrf_k": 60,
+      "sparse_weight": 1.0
+    }
+  },
+  "frozen_at": "2026-09-09T01:45:05Z",
+  "index_hash": "6af62afaacd720edbfc9776bbfb941cb46b4e884ead3b987229910e83d513eae",
+  "metrics": {
+    "composite_components": {
+      "citation_correctness": 1.0,
+      "groundedness": 0.7166666666666667,
+      "recall_at_k": 0.8666666666666667,
+      "relevance": 0.7
+    },
+    "composite_quality": 0.8283333333333334,
+    "context_tokens_per_query": 2792.5333333333333,
+    "cost_per_query_usd": 0.0,
+    "eval_cost_usd": 0.0,
+    "input_tokens_per_query": 0.0,
+    "judge_citation_correctness": 5.0,
+    "judge_citation_correctness_normalised": 1.0,
+    "judge_groundedness": 3.8666666666666667,
+    "judge_groundedness_normalised": 0.7166666666666667,
+    "judge_relevance": 3.8,
+    "judge_relevance_normalised": 0.7,
+    "k": 10,
+    "mean_latency_s": 0.008383334500043324,
+    "mrr": 0.3099735449735449,
+    "n_answers": 15,
+    "n_retrieval": 15,
+    "ndcg_at_10": 0.4368619577996022,
+    "output_tokens_per_query": 0.0,
+    "p50_latency_s": 0.007944188500232485,
+    "p95_latency_s": 0.01142578260023583,
+    "projected_cost_per_query_usd": 0.0104706,
+    "recall_at_k": 0.8666666666666667
+  },
+  "notes": "highest composite quality in the 27-configuration sweep; see reports/pareto.md",
+  "prompt_hashes": {
+    "generator": "9b957d00ba63a2c16c4eedc8863057dff30ad885dae34130de82c65e14eff4bc",
+    "judge": "035548ced080f92991f0ed2fe8912ede87c0f81e5ec0d6b61ba1b9bc88c984eb"
+  },
+  "replayed": false,
+  "run_id": "20260909T014505Z-4b8a0ad44f15",
+  "schema_version": 1
+}

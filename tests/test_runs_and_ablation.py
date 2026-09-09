@@ -88,7 +88,9 @@ def test_comparability_requires_matching_upstream_hashes() -> None:
     assert not base.comparable_to(meta(corpus_hash="z" * 64))
     assert not base.comparable_to(meta(prompt_hashes={"generator": "z" * 64}))
     assert not base.comparable_to(meta(evalset_hashes={"answers": "z" * 64}))
-    assert not base.comparable_to(meta(index_hash="z" * 64))
+    # The index hash is not part of the ground: changing the chunker changes it,
+    # and comparing chunkers is what the sweep is for.
+    assert base.comparable_to(meta(index_hash="z" * 64))
 
 
 def summary(run_id: str, **overrides: object) -> RunSummary:
@@ -163,8 +165,18 @@ def test_cell_label_is_readable() -> None:
 
 def test_committed_sweep_has_at_least_twelve_comparable_configurations(repo_root: Path) -> None:
     """The M4 gate: the frontier is plotted from a real matrix, not two points."""
-    from evalgate.reporting.pareto import load_summaries
+    from evalgate.reporting.pareto import latest_per_config, load_summaries
 
-    comparable, _ = partition_comparable(load_summaries(repo_root / "runs"))
+    comparable, _ = partition_comparable(latest_per_config(load_summaries(repo_root / "runs")))
     assert len(comparable) >= 12
     assert len({item.label for item in comparable}) == len(comparable)
+
+
+def test_re_measuring_a_configuration_shows_one_row(repo_root: Path) -> None:
+    """Freezing a baseline re-measures the winning cell; the table keeps one row."""
+    from evalgate.reporting.pareto import latest_per_config, load_summaries
+
+    everything = load_summaries(repo_root / "runs")
+    deduplicated = latest_per_config(everything)
+    assert len(deduplicated) < len(everything)
+    assert len({item.meta.config_hash for item in deduplicated}) == len(deduplicated)

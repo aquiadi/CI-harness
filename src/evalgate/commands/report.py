@@ -15,7 +15,7 @@ from evalgate.pipeline import build_stack
 from evalgate.reporting.calibration import build_report as build_calibration
 from evalgate.reporting.calibration import write_report
 from evalgate.reporting.pareto import build_report as build_pareto
-from evalgate.reporting.pareto import load_summaries, partition_comparable
+from evalgate.reporting.pareto import latest_per_config, load_summaries, partition_comparable
 
 console = Console()
 
@@ -41,7 +41,7 @@ def run(overrides: list[str]) -> int:
     changed = write_report(calibration_path, build_calibration(cfg, stack.tokenizer, summary))
     console.print(f"{'wrote' if changed else 'unchanged'} {calibration_path}")
 
-    summaries = load_summaries(resolve_path(cfg, "paths.runs_dir"))
+    summaries = latest_per_config(load_summaries(resolve_path(cfg, "paths.runs_dir")))
     comparable, excluded = partition_comparable(summaries)
     pareto_path = reports_dir / PARETO_FILE
     changed = write_report(pareto_path, build_pareto(comparable, excluded, reports_dir))

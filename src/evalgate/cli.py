@@ -22,6 +22,9 @@ from evalgate.errors import EvalgateError
 COMMANDS: dict[str, tuple[str, str]] = {
     "ablate": ("evalgate.commands.ablate", "run"),
     "config": ("evalgate.commands.show_config", "run"),
+    "eval": ("evalgate.commands.evaluate", "run"),
+    "freeze": ("evalgate.commands.freeze", "run"),
+    "gate-demo": ("evalgate.commands.gate_demo", "run"),
     "ingest": ("evalgate.commands.ingest", "run"),
     "gen-eval": ("evalgate.commands.gen_eval", "run"),
     "index": ("evalgate.commands.index", "run"),

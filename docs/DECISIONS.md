@@ -575,3 +575,101 @@ Cost: a caught exception is a place where a real problem could hide. It is
 narrowed to one exception type that means exactly "an optional dependency is
 not installed", and the skipped cells are printed and reported rather than
 silently absent.
+
+## D-0030 -- Pull-request CI replays; a nightly job runs live
+
+2026-09-09, M5
+
+All model access goes through one client with three modes. `replay` serves
+every call from a committed cassette and errors on a miss; it is the default
+and what pull-request CI runs. `record` makes live calls and writes cassettes.
+`live` makes live calls and writes nothing, and is what the nightly workflow
+runs against its own baseline.
+
+Why: an eval harness is only worth having if it runs before the merge, and a
+suite that costs money and minutes per push does not get to run before the
+merge for long. Replay makes a full evaluation -- generation, judging, gate --
+deterministic, free and immune to somebody else's rate limit, which is what
+makes gating every pull request affordable. Live catches what replay cannot:
+provider-side model updates, refusal-behaviour changes, latency creep. They
+catch different things and neither substitutes for the other.
+
+Cost: cassettes are a second thing to keep current. A prompt or model change
+invalidates them and shows up as a cassette miss, which is deliberate -- it is
+better to be told the recording is stale than to silently compare against it --
+but it does mean `make record` is part of the workflow for those changes, and
+the recording diff needs reviewing. Replay also freezes model behaviour: a
+regression that only a live model would reveal waits until the nightly run.
+
+## D-0031 -- Missing data fails the gate
+
+2026-09-09, M5
+
+A metric absent from the run, a metric absent from the baseline, or a missing
+`baseline.json` all fail. There is no path where the gate passes because it
+could not find something to compare.
+
+Why: the state in which a regression is invisible must not be the state in
+which the build is green. That is the whole design constraint. A gate that
+skips checks it cannot evaluate degrades silently into a gate that checks
+nothing, and nobody notices until the quality it was protecting is gone.
+
+Cost: a genuinely new metric fails the gate the first time it appears, until
+the baseline is re-frozen. That is one deliberate `make freeze` in a reviewable
+diff, which is the correct price.
+
+## D-0032 -- The gate compares the ground, not the configuration
+
+2026-09-09, M5
+
+A run is comparable to the baseline when the corpus hash, the prompt hashes and
+the eval-set hashes match. The config hash and the index hash are deliberately
+excluded.
+
+Why: a pull request that changes the retriever, the chunker or k changes both
+of those, and judging that change is exactly what the gate is for. What must
+not change silently is the ground the comparison stands on: the same documents,
+the same prompts, the same questions. If any of those differ, the numbers are
+not comparable and the gate says so rather than producing a number that looks
+like a comparison.
+
+Cost: editing a prompt or adding an eval question blocks the gate until the
+baseline is re-frozen. That is intended -- it forces the "is this new baseline
+the right one" conversation into a diff -- but it does make prompt iteration a
+two-step process.
+
+## D-0033 -- `make eval` selects the frozen configuration
+
+2026-09-09, M5
+
+`configs/experiment/baseline.yaml` composes the configuration that
+`baseline.json` was frozen on, and `make eval` selects it. CI runs `make eval`
+with no arguments.
+
+Why: the command a developer runs locally has to be the command that gates the
+build. Passing the stack as flags in a workflow file puts the real
+configuration in a place nobody reads, and lets CI and the laptop drift apart
+until someone spends an afternoon on why the numbers differ. The `PROFILE`
+variable in the Makefile makes the choice visible and overridable in one place.
+
+Cost: two sources of truth for "what is the frozen configuration" -- the
+experiment file and `baseline.json`'s recorded fingerprint -- which could
+disagree. The gate detects exactly that disagreement (D-0032) and fails, so it
+is a caught error rather than a silent one.
+
+## D-0034 -- The cost check falls back to projected cost
+
+2026-09-09, M5
+
+When the baseline's measured cost per query is zero, the cost check compares
+projected cost instead, and the report says which was used.
+
+Why: the frozen baseline runs the offline stack, whose measured cost is
+genuinely zero. A percentage rise from zero is undefined, and a check that can
+never fail is worse than no check because it looks like coverage. The projected
+figure varies with k and the chunker by a factor of five, so it is the quantity
+that actually detects "this change tripled the context we send".
+
+Cost: the gate is comparing a projection when it runs offline, which is a
+weaker claim than comparing spend. The alternative -- no cost check at all
+until someone freezes a live baseline -- is weaker still.

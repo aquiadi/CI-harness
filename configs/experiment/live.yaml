@@ -1,0 +1,21 @@
+# @package _global_
+# The system as it is meant to run: the real EU documents, local bge
+# embeddings, an API generator and an API judge. This is what the nightly
+# workflow measures against `baseline.live.json`.
+#
+# It needs `make corpus` to have fetched the sources, `make ml` for the local
+# encoder, and ANTHROPIC_API_KEY. Freeze its baseline once, deliberately:
+#   make freeze ARGS="+experiment=live gate.baseline_path=baseline.live.json"
+defaults:
+  - override /corpus: cbam
+  - override /chunker: recursive_structural
+  - override /retriever: hybrid
+  - override /embedder: local
+  - override /generator: sonnet
+  - override /judge: sonnet
+  - override /api: live
+
+retriever:
+  k: 8
+gate:
+  baseline_path: ${paths.root}/baseline.live.json

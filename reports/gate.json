@@ -1,0 +1,40 @@
+{
+  "baseline_run_id": "20260909T014505Z-4b8a0ad44f15",
+  "blocking": [],
+  "checks": [
+    {
+      "baseline": 0.8283333333333334,
+      "current": 0.8283333333333334,
+      "delta_pct": 0.0,
+      "metric": "composite_quality",
+      "name": "quality",
+      "passed": true,
+      "reason": "",
+      "threshold_pct": 2.0
+    },
+    {
+      "baseline": 0.01142578260023583,
+      "current": 0.011143460249968479,
+      "delta_pct": -2.470923525724393,
+      "metric": "p95_latency_s",
+      "name": "p95 latency",
+      "passed": true,
+      "reason": "",
+      "threshold_pct": 20.0
+    },
+    {
+      "baseline": 0.0104706,
+      "current": 0.0104706,
+      "delta_pct": 0.0,
+      "metric": "projected_cost_per_query_usd",
+      "name": "cost per query",
+      "passed": true,
+      "reason": "",
+      "threshold_pct": 15.0
+    }
+  ],
+  "comparable": true,
+  "cost_metric": "projected_cost_per_query_usd",
+  "passed": true,
+  "run_id": "20260909T015221Z-4b8a0ad44f15"
+}

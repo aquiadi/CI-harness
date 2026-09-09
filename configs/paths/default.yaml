@@ -6,6 +6,9 @@ corpus_manifest_path: ${paths.data_dir}/corpus/manifest.json
 index_dir: ${paths.data_dir}/index
 eval_dir: ${paths.data_dir}/eval
 runs_dir: ${paths.root}/runs
+# Ad-hoc runs (`make eval`) land here so that checking the gate does not add a
+# committed artifact on every invocation. It is gitignored.
+scratch_runs_dir: ${paths.runs_dir}/scratch
 reports_dir: ${paths.root}/reports
 cache_dir: ${paths.root}/.cache
 prompts_dir: ${paths.root}/prompts
