@@ -2,7 +2,7 @@
 
 A retrieval-augmented question answering system over EU CBAM regulatory
 documents whose actual product is the evaluation harness around it: an LLM
-judge validated against human labels, a 27-configuration retrieval
+judge validated against human labels, a 58-configuration retrieval
 ablation on a cost/latency/quality frontier, and a CI gate that fails a pull
 request when quality regresses. On the frozen baseline it scores **0.828
 composite quality** at **11.4 ms p95** and a projected **$0.01047
@@ -190,21 +190,21 @@ and has not run.
 ## The ablation frontier
 
 Full report with both frontier figures:
-[`reports/pareto.md`](reports/pareto.md). 27 configurations measured
+[`reports/pareto.md`](reports/pareto.md). 58 configurations measured
 over {chunker} x {retriever} x {k}; the nine cross-encoder rerank cells need
 the `ml` extra and are listed in the report as unmeasured. `*` marks a
 configuration on at least one frontier.
 
 |  | config | quality | recall@k | nDCG@10 | p95 ms | projected $/q |
 | --- | --- | --- | --- | --- | --- | --- |
-| * | fixed/hybrid/k=10 | 0.828 | 0.867 | 0.437 | 11.4 | 0.010471 |
-| * | fixed/bm25/k=10 | 0.807 | 0.733 | 0.483 | 0.8 | 0.010347 |
-| * | section/bm25/k=10 | 0.792 | 0.733 | 0.578 | 0.8 | 0.007510 |
-| * | section/hybrid/k=10 | 0.785 | 0.733 | 0.559 | 10.6 | 0.007396 |
-|  | recursive/bm25/k=10 | 0.773 | 0.733 | 0.506 | 0.8 | 0.009682 |
-| * | fixed/bm25/k=5 | 0.770 | 0.600 | 0.442 | 0.7 | 0.006183 |
-|  | section/bm25/k=5 | 0.765 | 0.600 | 0.533 | 0.7 | 0.005030 |
-| * | section/bm25/k=3 | 0.765 | 0.600 | 0.533 | 0.7 | 0.003712 |
+| * | recursive/hybrid/k=10/local | 0.835 | 0.867 | 0.548 | 18.2 | 0.009963 |
+|  | fixed/hybrid_rerank/k=10 | 0.832 | 0.933 | 0.570 | 5182.1 | 0.010201 |
+| * | section/dense/k=10/local | 0.832 | 0.933 | 0.692 | 18.9 | 0.007482 |
+| * | fixed/hybrid/k=10/hashed | 0.828 | 0.867 | 0.437 | 11.4 | 0.010471 |
+| * | section/dense/k=5/local | 0.822 | 0.933 | 0.692 | 17.6 | 0.004601 |
+|  | fixed/dense/k=10/local | 0.820 | 0.800 | 0.611 | 17.6 | 0.010624 |
+|  | recursive/dense/k=10/local | 0.817 | 0.867 | 0.596 | 19.4 | 0.009960 |
+|  | recursive/hybrid_rerank/k=10 | 0.817 | 0.867 | 0.568 | 3669.9 | 0.009687 |
 
 Three things the sweep says, on this corpus:
 
