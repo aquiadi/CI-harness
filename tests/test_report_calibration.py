@@ -195,6 +195,25 @@ def test_report_is_a_pure_function_of_its_inputs(workspace: DictConfig, tmp_path
     assert first == second
 
 
+def test_rejudging_the_same_answers_does_not_change_the_report(
+    workspace: DictConfig, tmp_path: Path
+) -> None:
+    """Re-running the judge produces identical scores with a new timestamp.
+
+    That must not show up as a report diff, or every regenerated report trains
+    the reader to ignore changes in reports/.
+    """
+    populate(tmp_path)
+    before = build_report(workspace, TOKENIZER, SUMMARY)
+    rejudged = [
+        judgment(f"e-{index}", f"answer number {index} [d#0001]", (5, 4, 3)) for index in range(5)
+    ]
+    for record in rejudged:
+        record.scored_at = "2099-12-31T23:59:59Z"
+    write_jsonl(tmp_path / "judge.jsonl", rejudged)
+    assert build_report(workspace, TOKENIZER, SUMMARY) == before
+
+
 def test_write_report_reports_whether_it_changed(tmp_path: Path) -> None:
     path = tmp_path / "r.md"
     assert write_report(path, "content") is True

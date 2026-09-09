@@ -12,7 +12,7 @@
 - retriever: hybrid (k=10)
 - judgments: 15 primary, 15 swapped-context
 - answers graded from: `reference`
-- inputs digest: 5a796ee3504c
+- inputs digest: 1470ce332d52
 
 ## Agreement with seed-author labels
 

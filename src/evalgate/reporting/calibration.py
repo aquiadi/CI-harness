@@ -285,15 +285,30 @@ def _prompt_hash_label(judgments: Sequence[JudgeScore]) -> str:
     return "n/a"
 
 
+# Fields that record when something happened rather than what it was. They are
+# excluded from the digest so that re-running the judge, which produces
+# identical scores with a new timestamp, does not change the report.
+_TIMESTAMP_FIELDS = frozenset({"scored_at", "labelled_at", "seconds_spent"})
+
+
+def _substance(record: JudgeScore | HumanLabel) -> dict[str, object]:
+    return {
+        key: value
+        for key, value in record.model_dump(mode="json").items()
+        if key not in _TIMESTAMP_FIELDS
+    }
+
+
 def _inputs_digest(judgments: Sequence[JudgeScore], labels: Sequence[HumanLabel]) -> str:
     """Identity of the data this report was computed from.
 
     Stands in for a timestamp: a report is a pure function of its inputs, so
-    what identifies it is what went in, not when it was rendered.
+    what identifies it is what went in, not when it was rendered -- and not
+    when the inputs themselves were produced.
     """
     payload = [
-        [item.model_dump(mode="json") for item in judgments],
-        [item.model_dump(mode="json") for item in labels],
+        [_substance(item) for item in judgments],
+        [_substance(item) for item in labels],
     ]
     return short(hash_obj(payload))
 

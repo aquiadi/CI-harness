@@ -15,6 +15,12 @@ data/corpus/raw/*
 data/corpus/processed/
 data/index/
 
+# The gate verdict is per-invocation output, not a report: it names the run id
+# and carries freshly measured latencies, so committing it would make every
+# `make eval` a diff. CI uploads it as an artifact and comments it on the PR.
+reports/gate.md
+reports/gate.json
+
 # Run artifacts are immutable. The ablation sweep behind reports/pareto.md is
 # committed (1.3 MB) so the report is verifiable from the repository; ad-hoc
 # runs are not, so `make eval` does not dirty the tree.
