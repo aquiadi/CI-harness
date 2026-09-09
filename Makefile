@@ -7,7 +7,7 @@ PY := $(RUN) python
 ARGS ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help install dev ml test check fmt lint types config seed gen-eval corpus ingest index \
+.PHONY: help install dev ml test check fmt lint types config seed gen-eval judge corpus ingest index \
         eval ablate label report gate-demo serve docker clean
 
 help:  ## List targets
@@ -56,6 +56,9 @@ ingest:  ## PDF -> text -> chunks
 
 index:  ## Build the vector + sparse indexes (no-op if the corpus is unchanged)
 	$(PY) -m evalgate.cli index $(ARGS)
+
+judge:  ## Score the answer eval set with the configured judge
+	$(PY) -m evalgate.cli judge $(ARGS)
 
 eval:  ## Run the eval suite against baseline.json; nonzero exit on regression
 	$(PY) -m evalgate.cli eval $(ARGS)

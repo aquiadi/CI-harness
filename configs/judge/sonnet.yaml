@@ -9,3 +9,6 @@ scale_min: 1
 scale_max: 5
 input_usd_per_mtok: 3.0
 output_usd_per_mtok: 15.0
+# reference: grade the eval set's reference answers. run: grade a run's answers.
+answers_from: reference
+run_id: null

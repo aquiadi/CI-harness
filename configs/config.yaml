@@ -15,6 +15,7 @@ defaults:
   - retriever: hybrid
   - generator: sonnet
   - judge: sonnet
+  - probes: default
   - api: replay
   - gate: default
   - evalsets: default

@@ -1,0 +1,17 @@
+# A rule-based baseline judge. It costs nothing and answers the first question
+# a sceptical reader asks: does the LLM judge agree with people better than a
+# cheap rule does? The rules are documented in evalgate/judging/heuristic.py.
+provider: heuristic
+model: rule-based-v1
+prompt: judge/rubric_v1.md
+max_tokens: 0
+temperature: 0.0
+max_attempts: 1
+axes: [groundedness, relevance, citation_correctness]
+scale_min: 1
+scale_max: 5
+input_usd_per_mtok: 0.0
+output_usd_per_mtok: 0.0
+# reference: grade the eval set's reference answers. run: grade a run's answers.
+answers_from: reference
+run_id: null

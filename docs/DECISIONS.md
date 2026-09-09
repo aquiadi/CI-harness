@@ -378,3 +378,120 @@ almost nothing about whether the judge agrees with a person. They exist to make
 the calibration pipeline runnable and testable before anyone has labelled.
 `reports/judge_calibration.md` states this wherever they are the source, and
 the report distinguishes them from labels produced through `make label`.
+
+## D-0020 -- The judgment schema is built from config at runtime
+
+2026-09-09, M3
+
+The pydantic model the judge's tool call is validated against is constructed by
+`build_judgment_model(axes, scale_min, scale_max)` from the values in
+`configs/judge/`, rather than written out with a fixed 1-5 bound and three
+named fields.
+
+Why: the axes and the scale are configuration, and the invariant is that no
+threshold or scale appears in Python. Generating the model means the tool
+schema the API validates against, the bounds validation applies, and the
+columns the report prints all follow from one place. Adding a fourth axis is a
+config change.
+
+Cost: the model is dynamic, so a type checker cannot see its fields, and code
+reading a judgment goes through `model_dump()` rather than attribute access.
+That is a small, contained loss confined to two functions.
+
+## D-0021 -- A rule-based baseline judge ships alongside the LLM judge
+
+2026-09-09, M3
+
+`judge=heuristic` scores the same three axes by rule: content-word coverage
+against the retrieved context for groundedness, question-answer overlap with
+explicit refusal handling for relevance, and citation validity for citation
+correctness.
+
+Why: the first question a sceptical reader asks about an LLM judge is whether
+it beats a cheap rule. Without a baseline in the calibration report there is no
+way to answer, and a judge that agrees with people no better than string
+matching does is not worth its latency or its bill. The baseline is also immune
+by construction to the position and self-preference biases the probes look for,
+which makes it a useful control when reading those sections.
+
+It has a second effect that was not the reason for building it but is worth
+recording: because it needs no credentials, `make report` produces a real
+calibration report on a fresh clone with no API key. That is how the numbers
+currently in `reports/judge_calibration.md` were produced, and the report says
+which judge produced them.
+
+Cost: a second scoring implementation to keep aligned with the axes. It is
+about ninety lines and its rules are documented in full in its module
+docstring, because a baseline whose behaviour is unclear is not a baseline.
+
+## D-0022 -- Judge scores and human labels join on the answer hash
+
+2026-09-09, M3
+
+A judge score is compared to a human label only when both carry the same
+`example_id` **and** the same `answer_hash`.
+
+Why: an answer changes whenever the generator, the prompt or the retrieval
+changes. Joining on the question alone would compare a judge's opinion of one
+answer with a person's opinion of a different answer to the same question, and
+report the result as agreement. That is a number that looks right and is
+meaningless, which is the worst kind.
+
+Cost: re-generating answers invalidates every existing label, and the report
+then shows "no overlapping labelled items" rather than a stale kappa. That is
+the correct behaviour and it is tested, but it does mean human labelling effort
+is tied to a specific answer set.
+
+## D-0023 -- Reports carry no timestamp
+
+2026-09-09, M3
+
+Generated reports record an inputs digest -- a hash of the judgments and labels
+they were computed from -- instead of a generation time.
+
+Why: a report is a pure function of the artifacts it reads. Regenerating one
+whose inputs have not changed should produce a byte-identical file and leave
+the working tree clean, so that a diff in `reports/` always means the
+measurements moved. A timestamp would make every regeneration a diff and train
+readers to ignore them.
+
+Cost: "when was this produced" is not answerable from the file itself. It is
+answerable from `git log`, which is the better record anyway.
+
+## D-0024 -- Undefined kappa is reported as undefined, never as zero
+
+2026-09-09, M3
+
+When either rater gives the same score to every item, Cohen's kappa divides by
+zero. The report prints "undefined" with the reason instead of a number.
+
+Why: 0.0 means "agreement no better than chance", which is a finding. Undefined
+means "this data cannot answer the question", which is a different finding.
+Printing the first when the second is true is a quiet lie, and this repo's only
+real asset is that its numbers can be trusted. The seed label set is skewed
+enough to hit this case, so it is not hypothetical.
+
+Cost: consumers of the report have to handle a non-numeric cell. The gate
+handles it by failing rather than by coercing (see M5).
+
+## D-0025 -- Citations are extracted with a regex; judge output never is
+
+2026-09-09, M3
+
+`evalgate.citations` finds `[doc#0007]` in a generated answer with a regular
+expression. `CLAUDE.md` forbids parsing judge output with a regex. These are
+not in tension, and the module docstring says why.
+
+The rule exists because a half-matching regex over a judge's prose invents a
+score that looks real and cannot be detected downstream. Citation extraction is
+the opposite situation: the input is an answer, the output is a set of chunk
+ids, and every extracted id is then checked against the context that was
+actually retrieved. A missed or spurious match surfaces as a citation the
+context does not contain, which is measured. Judge scores still arrive only
+through a tool call validated against a schema.
+
+Cost: an answer that writes a citation in some other format is scored as
+uncited. That is a defensible reading -- the generation prompt specifies the
+format -- but it does mean the citation axis is partly measuring format
+compliance. The heuristic judge's citation score in particular should be read
+that way.

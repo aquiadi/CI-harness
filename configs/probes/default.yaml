@@ -1,0 +1,7 @@
+# Bias probes run as part of `make report`. Each one asks whether a judge score
+# moves for a reason that has nothing to do with answer quality.
+position_swap: true      # same answer, context order reversed
+length_bias: true        # correlation between answer length and score
+self_preference: true    # same judge over two generators' answers
+contrast_generator: haiku
+worst_disagreements: 10

@@ -1,5 +1,8 @@
 retrieval_path: ${paths.eval_dir}/retrieval.jsonl
 answers_path: ${paths.eval_dir}/answers.jsonl
 human_labels_path: ${paths.eval_dir}/human_labels.jsonl
+# Ratings authored alongside the seed answers. Not independent human labels;
+# the calibration report reads them separately and says so. See D-0019.
+seed_labels_path: ${paths.eval_dir}/seed_labels.jsonl
 judge_scores_path: ${paths.eval_dir}/judge_scores.jsonl
 limit: null

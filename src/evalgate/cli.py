@@ -24,7 +24,9 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "ingest": ("evalgate.commands.ingest", "run"),
     "gen-eval": ("evalgate.commands.gen_eval", "run"),
     "index": ("evalgate.commands.index", "run"),
+    "judge": ("evalgate.commands.judge", "run"),
     "label": ("evalgate.commands.label", "run"),
+    "report": ("evalgate.commands.report", "run"),
     "retrieve": ("evalgate.commands.retrieve", "run"),
 }
 

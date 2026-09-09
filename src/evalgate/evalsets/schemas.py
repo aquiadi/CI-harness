@@ -134,3 +134,6 @@ class JudgeScore(BaseModel):
     # Set when the same answer was scored with the context order swapped, for
     # the position-bias probe.
     variant: str = "primary"
+    # Which generator produced the answer that was graded. The self-preference
+    # probe groups by this; "reference" means the eval set's own answer.
+    generator: str = "reference"

@@ -113,6 +113,23 @@ class JudgeConfig:
     scale_max: int = 5
     input_usd_per_mtok: float = MISSING
     output_usd_per_mtok: float = MISSING
+    # Which answers to grade: the eval set's reference answers, or the answers
+    # produced by a run under runs/.
+    answers_from: str = "reference"
+    run_id: str | None = None
+
+
+@dataclass
+class ProbesConfig:
+    """Judge bias probes."""
+
+    position_swap: bool = True
+    length_bias: bool = True
+    self_preference: bool = True
+    # The second generator used for the self-preference probe, as a config
+    # group name under configs/generator/.
+    contrast_generator: str = "haiku"
+    worst_disagreements: int = 10
 
 
 @dataclass
@@ -146,6 +163,7 @@ class EvalSetsConfig:
     retrieval_path: str = MISSING
     answers_path: str = MISSING
     human_labels_path: str = MISSING
+    seed_labels_path: str = MISSING
     judge_scores_path: str = MISSING
     limit: int | None = None
 
@@ -204,6 +222,7 @@ class RootConfig:
     retriever: Any = MISSING
     generator: GeneratorConfig = field(default_factory=GeneratorConfig)
     judge: JudgeConfig = field(default_factory=JudgeConfig)
+    probes: ProbesConfig = field(default_factory=ProbesConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
     gate: GateConfig = field(default_factory=GateConfig)
     evalsets: EvalSetsConfig = field(default_factory=EvalSetsConfig)
