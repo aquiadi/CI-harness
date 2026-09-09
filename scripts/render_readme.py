@@ -30,6 +30,7 @@ from evalgate.reporting.calibration import partition_labels
 from evalgate.reporting.markdown import number, table
 from evalgate.reporting.pareto import (
     RunSummary,
+    assign_labels,
     latest_per_config,
     load_summaries,
     partition_comparable,
@@ -46,16 +47,20 @@ UNDEFINED = "undefined"
 
 
 def _pareto_rows(summaries: list[RunSummary], limit: int) -> str:
+    labels = assign_labels(summaries)
     cost = {
         point.label
         for point in frontier(
-            [Point(item.label, item.projected_cost, item.quality, False) for item in summaries]
+            [
+                Point(labels[item.run_id], item.projected_cost, item.quality, False)
+                for item in summaries
+            ]
         )
     }
     latency = {
         point.label
         for point in frontier(
-            [Point(item.label, item.p95_ms, item.quality, False) for item in summaries]
+            [Point(labels[item.run_id], item.p95_ms, item.quality, False) for item in summaries]
         )
     }
     ranked = sorted(summaries, key=lambda item: -item.quality)[:limit]
@@ -63,8 +68,8 @@ def _pareto_rows(summaries: list[RunSummary], limit: int) -> str:
         ["", "config", "quality", "recall@k", "nDCG@10", "p95 ms", "projected $/q"],
         [
             [
-                "*" if item.label in cost | latency else "",
-                item.label,
+                "*" if labels[item.run_id] in cost | latency else "",
+                labels[item.run_id],
                 number(item.quality),
                 number(item.metrics.get("recall_at_k")),
                 number(item.metrics.get("ndcg_at_10")),

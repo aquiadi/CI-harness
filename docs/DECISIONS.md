@@ -713,3 +713,51 @@ Cost: no serving-side latency tricks, and a slightly larger response body. The
 index is built at startup rather than lazily, so a container that cannot build
 it fails to start instead of failing on traffic -- which is the behaviour you
 want, but it does mean a slower cold start.
+
+## D-0037 -- A report label is unique within its table, or it is not a label
+
+2026-09-09, post-M6
+
+`RunSummary.base_label` names what the sweep varies -- chunker, retriever, k --
+and `assign_labels` guarantees uniqueness across the runs in one table by
+appending the component that actually differs (embedder, then generator, then
+judge, then the config hash) to the colliding rows only.
+
+Why: the base label was not unique. Re-running the same sweep with a different
+embedder -- which is the first thing anyone does after `make ml` -- produced two
+rows reading `fixed/hybrid/k=10` with different numbers and no way to tell
+which was which. A row a reader cannot identify is not evidence, which is the
+same principle that makes runs immutable and reports refuse incomparable data;
+the labelling layer simply had not been held to it.
+
+Qualifying only the colliding rows keeps the common case short: with one
+embedder the labels are exactly what they were, and the committed reports are
+byte-identical after this change. A qualifier that does not split a group is
+skipped rather than appended, so labels grow only as far as they must.
+
+Cost: a label's length now depends on what else is in the table, so the same
+run can print as `fixed/dense/k=10` in one report and
+`fixed/dense/k=10/hashed` in another. That is the correct trade -- the label's
+job is to disambiguate within the table a reader is looking at -- but it means
+a label is not a stable identifier across reports. The run id is.
+
+## D-0038 -- Correctness tests carry no deadline
+
+2026-09-09, post-M6
+
+Property tests assert what the code computes, not how fast it computes it, so
+they run with `deadline=None`, and expensive constant setup is hoisted out of
+the generated-example loop.
+
+Why: the chunking property test rebuilt the whole hydra config inside the
+hypothesis loop, at about 170 ms per example against hypothesis's 200 ms
+default deadline. It passed alone and failed at random in a loaded suite. A
+correctness test that fails because the machine was busy is worse than no test:
+it teaches the reader to re-run red builds, which is precisely the habit this
+repository exists to prevent. Caching the chunker fixed the cause and took
+about 20 seconds off the suite; `deadline=None` removes the class of failure.
+
+Cost: a genuine performance regression in chunking will no longer surface as a
+test failure. It was never a reliable signal for that -- the deadline measured
+config composition, not chunking -- and latency that matters is measured in the
+run record, where p50 and p95 are recorded per query.

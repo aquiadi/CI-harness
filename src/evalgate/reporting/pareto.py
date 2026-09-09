@@ -15,7 +15,7 @@ which.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -41,8 +41,12 @@ class RunSummary:
     metrics: dict[str, Any]
 
     @property
-    def label(self) -> str:
-        """Compact configuration label used in tables and on the plots."""
+    def base_label(self) -> str:
+        """The three things the sweep varies: chunker, retriever, k.
+
+        Not necessarily unique on its own -- see ``assign_labels``, which is
+        what tables and plots should use.
+        """
         fingerprint = self.meta.fingerprint
         chunker = str(fingerprint.get("chunker", {}).get("name", "?"))
         retriever = str(fingerprint.get("retriever", {}).get("name", "?"))
@@ -67,6 +71,68 @@ class RunSummary:
     def projected_cost(self) -> float:
         """USD per query this configuration would cost through the API."""
         return float(self.metrics.get("projected_cost_per_query_usd", 0.0))
+
+
+# Appended to a label, in order, until every run in a table has a distinct one.
+# Each names the fingerprint node and the field within it that reads best:
+# an embedder is recognisable by its name, a generator or judge by its model.
+LABEL_QUALIFIERS: tuple[tuple[str, str], ...] = (
+    ("embedder", "name"),
+    ("generator", "model"),
+    ("judge", "model"),
+)
+CONFIG_HASH_CHARS = 6
+
+
+def _component(meta: RunMeta, node: str, field: str) -> str:
+    """One fingerprint component, for use in a label."""
+    value = meta.fingerprint.get(node)
+    if not isinstance(value, dict):
+        return "?"
+    return str(value.get(field) or value.get("name") or "?")
+
+
+def _collisions(labels: Mapping[str, str]) -> list[list[str]]:
+    """Run ids grouped by any label more than one of them shares."""
+    grouped: dict[str, list[str]] = {}
+    for run_id, label in labels.items():
+        grouped.setdefault(label, []).append(run_id)
+    return [run_ids for run_ids in grouped.values() if len(run_ids) > 1]
+
+
+def assign_labels(summaries: Sequence[RunSummary]) -> dict[str, str]:
+    """Give every run a label that is unique within the table it appears in.
+
+    A row a reader cannot tell apart from another row is not evidence. The base
+    label names what the sweep varies and stays short while that is enough;
+    when a table mixes runs agreeing on all three -- the same sweep re-run with
+    a real embedder, say -- the component that actually differs is appended to
+    the colliding rows only. Rows that were already unambiguous keep their
+    short labels, so the common case is unchanged.
+
+    A qualifier that does not split a colliding group is skipped rather than
+    appended, and a group that survives every qualifier falls back to its
+    config hash, which cannot collide.
+    """
+    labels = {summary.run_id: summary.base_label for summary in summaries}
+    by_run = {summary.run_id: summary for summary in summaries}
+
+    for node, field in LABEL_QUALIFIERS:
+        groups = _collisions(labels)
+        if not groups:
+            return labels
+        for run_ids in groups:
+            values = {run_id: _component(by_run[run_id].meta, node, field) for run_id in run_ids}
+            if len(set(values.values())) == 1:
+                continue
+            for run_id in run_ids:
+                labels[run_id] = f"{labels[run_id]}/{values[run_id]}"
+
+    for run_ids in _collisions(labels):
+        for run_id in run_ids:
+            digest = short(by_run[run_id].meta.config_hash, CONFIG_HASH_CHARS)
+            labels[run_id] = f"{labels[run_id]}#{digest}"
+    return labels
 
 
 def _abbreviate(chunker: str) -> str:
@@ -130,7 +196,9 @@ def _hash_of(mapping: dict[str, str]) -> str:
     return hash_obj(mapping)
 
 
-def _results_table(summaries: Sequence[RunSummary], frontier_labels: set[str]) -> str:
+def _results_table(
+    summaries: Sequence[RunSummary], frontier_labels: set[str], labels: Mapping[str, str]
+) -> str:
     headers = [
         "",
         "config",
@@ -152,8 +220,8 @@ def _results_table(summaries: Sequence[RunSummary], frontier_labels: set[str]) -
         metrics = summary.metrics
         rows.append(
             [
-                "*" if summary.label in frontier_labels else "",
-                summary.label,
+                "*" if labels[summary.run_id] in frontier_labels else "",
+                labels[summary.run_id],
                 number(summary.quality),
                 number(metrics.get("recall_at_k")),
                 number(metrics.get("ndcg_at_10")),
@@ -199,12 +267,14 @@ def build_report(
         )
     )
 
+    labels = assign_labels(summaries)
     cost_points = [
-        Point(summary.label, summary.projected_cost, summary.quality, False)
+        Point(labels[summary.run_id], summary.projected_cost, summary.quality, False)
         for summary in summaries
     ]
     latency_points = [
-        Point(summary.label, summary.p95_ms, summary.quality, False) for summary in summaries
+        Point(labels[summary.run_id], summary.p95_ms, summary.quality, False)
+        for summary in summaries
     ]
     cost_frontier = {point.label for point in frontier(cost_points)}
     latency_frontier = {point.label for point in frontier(latency_points)}
@@ -231,7 +301,7 @@ def build_report(
         f"`*` marks a configuration on at least one frontier "
         f"({len(cost_frontier | latency_frontier)} of {len(summaries)})."
     )
-    parts.append(_results_table(summaries, cost_frontier | latency_frontier))
+    parts.append(_results_table(summaries, cost_frontier | latency_frontier, labels))
 
     measured = any(summary.measured_cost > 0 for summary in summaries)
     parts.append(heading("Frontiers", 2))
@@ -255,14 +325,14 @@ def build_report(
             [
                 [
                     axis,
-                    summary.label,
+                    labels[summary.run_id],
                     number(summary.quality),
                     number(summary.projected_cost, 6),
                     number(summary.p95_ms, 1),
                 ]
-                for axis, labels in (("cost", cost_frontier), ("latency", latency_frontier))
+                for axis, on_frontier in (("cost", cost_frontier), ("latency", latency_frontier))
                 for summary in sorted(summaries, key=lambda item: -item.quality)
-                if summary.label in labels
+                if labels[summary.run_id] in on_frontier
             ],
         )
     )

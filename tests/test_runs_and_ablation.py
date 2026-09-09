@@ -7,7 +7,7 @@ import pytest
 
 from evalgate.commands.ablate import Cell, expand
 from evalgate.config import AblationConfig
-from evalgate.reporting.pareto import RunSummary, partition_comparable
+from evalgate.reporting.pareto import RunSummary, assign_labels, partition_comparable
 from evalgate.reporting.plots import Point, frontier
 from evalgate.runs.store import (
     RunExistsError,
@@ -109,6 +109,88 @@ def test_no_runs_partitions_to_nothing() -> None:
     assert partition_comparable([]) == ([], [])
 
 
+def summary_with(
+    run_id: str, chunker: str, retriever: str, embedder: str, **extra: object
+) -> RunSummary:
+    fingerprint: dict[str, object] = {
+        "chunker": {"name": chunker},
+        "retriever": {"name": retriever},
+        "embedder": {"name": embedder, "model": f"{embedder}-model"},
+        "generator": {"name": "extractive", "model": "extractive-v1"},
+        "judge": {"name": "heuristic", "model": "rule-based-v1"},
+    }
+    fingerprint.update(extra)
+    return RunSummary(
+        run_id=run_id,
+        meta=meta(run_id, fingerprint=fingerprint, config_hash=run_id.ljust(64, "0")),
+        metrics={"k": 10},
+    )
+
+
+def test_labels_stay_short_when_nothing_collides() -> None:
+    """The common case -- one embedder -- keeps the short, readable label."""
+    summaries = [
+        summary_with("a", "fixed_token", "hybrid", "local"),
+        summary_with("b", "section_aware", "bm25", "local"),
+    ]
+    assert set(assign_labels(summaries).values()) == {
+        "fixed/hybrid/k=10",
+        "section/bm25/k=10",
+    }
+
+
+def test_the_same_sweep_with_a_different_embedder_gets_distinct_labels() -> None:
+    """Re-running a sweep with real embeddings must not produce duplicate rows."""
+    summaries = [
+        summary_with("a", "fixed_token", "hybrid", "hashed"),
+        summary_with("b", "fixed_token", "hybrid", "local"),
+    ]
+    labels = assign_labels(summaries)
+    assert labels["a"] != labels["b"]
+    assert labels == {"a": "fixed/hybrid/k=10/hashed", "b": "fixed/hybrid/k=10/local"}
+
+
+def test_only_the_colliding_rows_are_qualified() -> None:
+    summaries = [
+        summary_with("a", "fixed_token", "hybrid", "hashed"),
+        summary_with("b", "fixed_token", "hybrid", "local"),
+        summary_with("c", "section_aware", "bm25", "local"),
+    ]
+    assert assign_labels(summaries)["c"] == "section/bm25/k=10"
+
+
+def test_a_qualifier_that_does_not_distinguish_is_not_appended() -> None:
+    """Two runs differing only in generator should not gain a useless embedder tag."""
+    summaries = [
+        summary_with("a", "fixed_token", "hybrid", "local"),
+        summary_with("b", "fixed_token", "hybrid", "local"),
+    ]
+    summaries[1].meta.fingerprint["generator"] = {"name": "anthropic", "model": "claude-sonnet-4-6"}
+    labels = assign_labels(summaries)
+    assert labels["a"] == "fixed/hybrid/k=10/extractive-v1"
+    assert labels["b"] == "fixed/hybrid/k=10/claude-sonnet-4-6"
+
+
+def test_indistinguishable_runs_fall_back_to_the_config_hash() -> None:
+    """Every row must be identifiable, even when no named component differs."""
+    summaries = [
+        summary_with("aaa", "fixed_token", "hybrid", "local"),
+        summary_with("bbb", "fixed_token", "hybrid", "local"),
+    ]
+    labels = assign_labels(summaries)
+    assert labels["aaa"] != labels["bbb"]
+    assert all("#" in label for label in labels.values())
+
+
+def test_labels_are_unique_by_construction() -> None:
+    summaries = [
+        summary_with(letter, "fixed_token", "hybrid", embedder)
+        for letter, embedder in zip("abcd", ["hashed", "local", "api", "hashed"], strict=True)
+    ]
+    labels = assign_labels(summaries)
+    assert len(set(labels.values())) == len(summaries)
+
+
 def test_frontier_keeps_the_non_dominated_set() -> None:
     points = [
         Point("cheap-poor", 1.0, 0.5, False),
@@ -169,7 +251,7 @@ def test_committed_sweep_has_at_least_twelve_comparable_configurations(repo_root
 
     comparable, _ = partition_comparable(latest_per_config(load_summaries(repo_root / "runs")))
     assert len(comparable) >= 12
-    assert len({item.label for item in comparable}) == len(comparable)
+    assert len(set(assign_labels(comparable).values())) == len(comparable)
 
 
 def test_re_measuring_a_configuration_shows_one_row(repo_root: Path) -> None:

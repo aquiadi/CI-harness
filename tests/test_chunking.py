@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import cache
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,16 @@ CHUNKERS = ["fixed_token", "recursive_structural", "section_aware"]
 TOKENIZER = RegexTokenEstimator(name="t", pattern=r"\w+|[^\w\s]", tokens_per_word=1.3)
 
 
+@cache
 def chunker_for(name: str, target: int = 96) -> Chunker:
+    """Build a chunker, cached.
+
+    Composing the hydra tree costs ~170 ms, and a property test pays it once
+    per generated example. That is both wasteful and the cause of a real flake:
+    it sat right on hypothesis's 200 ms per-example deadline, so the suite
+    failed at random on a loaded machine. Chunkers are frozen and stateless, so
+    one instance per configuration is safe to share.
+    """
     cfg: DictConfig = load_config(overrides=[f"chunker={name}", f"chunker.target_tokens={target}"])
     return build_chunker(cfg, build_tokenizer(cfg))
 
@@ -109,7 +119,13 @@ def test_fixed_token_windows_respect_the_target(document: Document) -> None:
 
 
 @pytest.mark.parametrize("name", CHUNKERS)
-@settings(max_examples=25, suppress_health_check=[HealthCheck.function_scoped_fixture])
+# deadline=None: this asserts correctness, not speed. A correctness test that
+# fails because the machine was busy is worse than no test at all.
+@settings(
+    max_examples=25,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
 @given(body=st.text(alphabet=st.characters(codec="ascii"), min_size=1, max_size=800))
 def test_chunker_never_raises_on_arbitrary_text(name: str, body: str) -> None:
     text = normalise(body)
