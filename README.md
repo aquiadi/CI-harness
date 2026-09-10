@@ -2,12 +2,12 @@
 
 A retrieval-augmented question answering system over EU CBAM regulatory
 documents whose actual product is the evaluation harness around it: an LLM
-judge validated against human labels, a 63-configuration retrieval
+judge validated against human labels, a 65-configuration retrieval
 ablation on a cost/latency/quality frontier, and a CI gate that fails a pull
 request when quality regresses. On the frozen baseline it scores **0.828
 composite quality** at **11.4 ms p95** and a projected **$0.01047
 per query**; the judge agrees with the available labels at a Cohen's kappa of
-**1.000 groundedness / 0.500 relevance / 0.872 citation correctness** -- a number that should not be read as a validated
+**0.800 groundedness / 0.348 relevance / 0.348 citation correctness** -- a number that should not be read as a validated
 judge, because those labels are not independent. The section below says why.
 
 The RAG application is deliberately ordinary. The measurement is the point.
@@ -154,13 +154,13 @@ command for anyone with a key.
 
 Full report: [`reports/judge_calibration.md`](reports/judge_calibration.md).
 Agreement between the configured judge (`rule-based-v1`) and the only labels
-currently on disk (`seed-author`, 15 paired items):
+currently on disk (`aditya`, 15 paired items):
 
 | axis | n | kappa | quadratic kappa | exact agreement | mean human | mean judge |
 | --- | --- | --- | --- | --- | --- | --- |
-| groundedness | 15 | 1.000 | 1.000 | 1.000 | 4.27 | 4.27 |
-| relevance | 15 | 0.500 | 0.906 | 0.800 | 4.60 | 4.40 |
-| citation_correctness | 15 | 0.872 | 0.986 | 0.933 | 3.93 | 4.00 |
+| groundedness | 15 | 0.800 | 0.986 | 0.933 | 4.20 | 4.27 |
+| relevance | 15 | 0.348 | 0.888 | 0.733 | 4.53 | 4.40 |
+| citation_correctness | 15 | 0.348 | 0.539 | 0.667 | 3.67 | 4.00 |
 
 **A high kappa here is not the good news it looks like.**
 
@@ -200,21 +200,21 @@ and has not run.
 ## The ablation frontier
 
 Full report with both frontier figures:
-[`reports/pareto.md`](reports/pareto.md). 63 configurations measured
+[`reports/pareto.md`](reports/pareto.md). 65 configurations measured
 over {chunker} x {retriever} x {k}; the nine cross-encoder rerank cells need
 the `ml` extra and are listed in the report as unmeasured. `*` marks a
 configuration on at least one frontier.
 
 |  | config | quality | recall@k | nDCG@10 | p95 ms | projected $/q |
 | --- | --- | --- | --- | --- | --- | --- |
+| * | fixed/dense/k=3/local/openai/gpt-oss-20b | 0.847 | 0.533 | 0.509 | 1603.1 | 0.007142 |
 | * | recursive/hybrid/k=10/local | 0.835 | 0.867 | 0.548 | 23.1 | 0.009963 |
 |  | fixed/hybrid_rerank/k=10 | 0.832 | 0.933 | 0.570 | 4731.7 | 0.010201 |
-| * | section/dense/k=10/local | 0.832 | 0.933 | 0.692 | 24.0 | 0.007482 |
+|  | section/dense/k=10/local | 0.832 | 0.933 | 0.692 | 24.0 | 0.007482 |
 |  | section/hybrid/k=10/local | 0.830 | 0.933 | 0.635 | 104.9 | 0.007672 |
 | * | fixed/hybrid/k=10/hashed | 0.828 | 0.867 | 0.437 | 11.4 | 0.010471 |
 | * | section/hybrid_rerank/k=5 | 0.825 | 0.933 | 0.735 | 6617.6 | 0.005137 |
 |  | section/hybrid_rerank/k=10 | 0.825 | 0.933 | 0.735 | 13964.4 | 0.007965 |
-| * | section/dense/k=5/local | 0.822 | 0.933 | 0.692 | 62.0 | 0.004601 |
 
 Three things the sweep says, on this corpus:
 
