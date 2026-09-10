@@ -34,13 +34,13 @@ sources:
     required: true
   - id: guidance_importers
     title: "Guidance document on CBAM implementation for importers of goods into the EU"
-    url: "https://taxation-customs.ec.europa.eu/system/files/2023-08/Guidance%20document%20on%20CBAM%20implementation%20for%20importers%20of%20goods%20into%20the%20EU_en.pdf"
+    url: "https://taxation-customs.ec.europa.eu/document/download/bc15e68d-566d-4419-88ec-b8f5c6823eb2_en"
     filename: guidance_importers.pdf
     kind: pdf
     required: true
   - id: guidance_operators
     title: "Guidance document on CBAM implementation for installation operators outside the EU"
-    url: "https://taxation-customs.ec.europa.eu/system/files/2023-08/Guidance%20document%20on%20CBAM%20implementation%20for%20installation%20operators%20outside%20the%20EU.pdf"
+    url: "https://taxation-customs.ec.europa.eu/document/download/2980287c-dca2-4a4b-aff3-db6374806cf7_en?filename=Guidance%20document%20on%20CBAM%20implementation%20for%20installation%20operators%20outside%20the%20EU.pdf"
     filename: guidance_operators.pdf
     kind: pdf
     required: true
