@@ -40,7 +40,15 @@ COPY src /app/src
 # artifacts: the image serves what these directories contain.
 COPY configs /app/configs
 COPY prompts /app/prompts
+# Both corpora ship. The synthetic one so the image runs with no setup and its
+# provenance is unambiguous; the real one so a deployment can serve it. Which is
+# used is EVALGATE_OVERRIDES at run time, not a rebuild. The real corpus
+# directory is gitignored, so `make corpus` must have run before `make docker`
+# for the second COPY to find anything -- hence the placeholder that keeps the
+# build working before it has.
 COPY data/corpus/synthetic /app/data/corpus/synthetic
+COPY data/corpus/raw /app/data/corpus/raw
+COPY data/corpus/manifest.json /app/data/corpus/manifest.json
 COPY baseline.json /app/baseline.json
 
 # The index is content-addressed and built at startup; it is the only thing the

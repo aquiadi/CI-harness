@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>evalgate - CBAM regulatory answers</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header>
+  <div class="wrap bar">
+    <div class="brand"><span class="mark"></span> evalgate</div>
+    <div id="status" class="status" aria-live="polite">connecting</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1>Ask the CBAM regulations</h1>
+  <p class="lede">
+    Every answer cites the passages it used. Each citation is checked against
+    what was actually retrieved, and shown as valid or unsupported. The full
+    retrieval trace, token cost and latency are on the response - nothing is
+    hidden behind the answer.
+  </p>
+
+  <form id="ask" autocomplete="off">
+    <label class="sr" for="q">Your question</label>
+    <textarea id="q" name="q" rows="2" required maxlength="2000"
+      placeholder="When is the quarterly CBAM report due?"></textarea>
+    <div class="controls">
+      <label class="k">top-k
+        <input id="k" type="number" min="1" max="50" placeholder="default">
+      </label>
+      <button id="go" type="submit">Ask</button>
+    </div>
+  </form>
+
+  <div class="examples" id="examples" hidden>
+    <span>Try:</span>
+    <button type="button" data-q="When is the quarterly CBAM report due?">reporting deadline</button>
+    <button type="button" data-q="Which goods are covered by the CBAM transitional period?">covered goods</button>
+    <button type="button" data-q="How are embedded emissions calculated for imported steel?">embedded emissions</button>
+  </div>
+
+  <section id="error" class="error" hidden></section>
+
+  <section id="result" hidden>
+    <div class="answer-head">
+      <h2>Answer</h2>
+      <div class="badges" id="badges"></div>
+    </div>
+    <div id="answer" class="answer"></div>
+
+    <h3>Citations</h3>
+    <p class="hint" id="cite-hint"></p>
+    <ul id="citations" class="citations"></ul>
+
+    <details id="trace-wrap">
+      <summary>Retrieval trace <span id="trace-count" class="muted"></span></summary>
+      <ol id="trace" class="trace"></ol>
+    </details>
+
+    <details id="prov-wrap">
+      <summary>Provenance</summary>
+      <dl id="prov" class="prov"></dl>
+    </details>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p>
+    Answers are generated from retrieved text and can be wrong. This is not
+    legal advice. Verify against the cited passage and the official Official
+    Journal text before relying on anything here.
+  </p>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

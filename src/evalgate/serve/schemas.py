@@ -31,6 +31,9 @@ class RetrievedChunk(BaseModel):
     section: str | None
     rank: int
     score: float
+    # The passage itself. A citation nobody can read is not a citation: the
+    # point of citing a regulation is that the reader checks it.
+    text: str
 
 
 class Citation(BaseModel):

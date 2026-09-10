@@ -20,9 +20,12 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
 from evalgate.citations import audit_citations
@@ -41,6 +44,13 @@ from evalgate.generation.factory import build_generator
 from evalgate.models.client import build_model_client
 from evalgate.pipeline import RetrievalStack, build_stack
 from evalgate.prompts import load_prompt
+from evalgate.serve.limits import (
+    HEADER,
+    FixedWindowLimiter,
+    configured_key,
+    configured_rate_limit,
+    key_matches,
+)
 from evalgate.serve.schemas import (
     Citation,
     Cost,
@@ -56,6 +66,7 @@ from evalgate.serve.schemas import (
 OVERRIDES_ENV = "EVALGATE_OVERRIDES"
 USD_PER_MTOK = 1_000_000.0
 PROVIDER_EXTRACTIVE = "extractive"
+STATIC_DIR = Path(__file__).parent / "static"
 TITLE = "evalgate"
 DESCRIPTION = "Retrieval-augmented answers over CBAM regulatory documents, with their trace."
 
@@ -126,6 +137,7 @@ def answer_question(service: Service, question: str, k: int | None) -> QueryResp
                     section=result.section,
                     rank=result.rank,
                     score=result.score,
+                    text=result.text,
                 )
                 for result in results
             ],
@@ -176,6 +188,45 @@ def create_app(overrides: list[str] | None = None) -> FastAPI:
         state.clear()
 
     app = FastAPI(title=TITLE, description=DESCRIPTION, lifespan=lifespan)
+
+    api_key = configured_key()
+    rate_limit = configured_rate_limit()
+    limiter = FixedWindowLimiter(limit=rate_limit) if rate_limit else None
+
+    @app.middleware("http")
+    async def guard(request: Request, call_next: Any) -> Any:
+        """Authenticate and rate limit the answering path.
+
+        `/health` is deliberately exempt: a load balancer has no key, and a
+        readiness probe that trips the rate limiter takes the service down
+        exactly when it is busiest. The static UI is exempt for the same
+        reason -- it reveals nothing and cannot spend money.
+        """
+        if request.url.path == "/query":
+            if api_key is not None and not key_matches(request.headers.get(HEADER), api_key):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": f"a valid {HEADER} header is required"},
+                )
+            if limiter is not None:
+                client = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
+                    request.client.host if request.client else "unknown"
+                )
+                if not limiter.allow(client):
+                    return JSONResponse(
+                        status_code=429,
+                        content={"detail": "rate limit exceeded"},
+                        headers={"retry-after": str(limiter.retry_after_s(client))},
+                    )
+        return await call_next(request)
+
+    if STATIC_DIR.is_dir():
+        app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+        @app.get("/", include_in_schema=False)
+        def index() -> FileResponse:
+            """The query interface."""
+            return FileResponse(STATIC_DIR / "index.html")
 
     @app.get("/health", response_model=Health)
     def health() -> Health:

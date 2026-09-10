@@ -90,7 +90,7 @@ make ablate       # sweep the config matrix, one immutable run each
 make judge        # score the answer eval set
 make report       # regenerate reports/ from the run artifacts
 make label        # rate answers on three axes; resumable, loses nothing
-make serve        # POST /query on :8000
+make serve        # the query UI and POST /query on :8000
 ```
 
 For the real system -- real documents, bge embeddings, API generator and judge:
@@ -101,6 +101,38 @@ make corpus                          # fetch and pin the EU sources by SHA256
 export ANTHROPIC_API_KEY=...
 make eval PROFILE="+experiment=live"
 ```
+
+## Serving it
+
+`make serve` starts a FastAPI process and opens <http://localhost:8000> on a
+query interface: ask a question, get the answer with every `[chunk#id]` marker
+rendered as a button that scrolls to the passage it cites. Each citation is
+labelled `verified` or `unsupported` by the same audit the evaluation uses, so
+a fabricated citation is visible in the interface rather than only in a report.
+The retrieval trace, token counts, latency split and the corpus, index, prompt
+and config hashes are all on the page.
+
+The API is unchanged and remains the contract: `GET /health` for readiness and
+what the process is serving, `POST /query` for an answer with its trace. The UI
+is a client of that endpoint and adds nothing to the answer path -- a serving
+layer that reranked or rewrote queries on its own would be a different system
+from the one the frontier below describes, and the frontier would quietly stop
+being true.
+
+Two environment variables gate a public deployment, both off by default because
+the harness and the test suite want neither:
+
+| variable | effect |
+| --- | --- |
+| `EVALGATE_API_KEY` | `POST /query` requires a matching `x-api-key` header |
+| `EVALGATE_RATE_LIMIT_PER_MINUTE` | per-client fixed window; returns 429 with `retry-after` |
+| `EVALGATE_OVERRIDES` | hydra overrides, space separated, e.g. `corpus=cbam` |
+
+`/health` is exempt from both on purpose: a load balancer carries no key, and a
+readiness probe that trips the rate limiter takes the service down exactly when
+it is busiest. The limiter is a fixed window in process memory -- it resets on
+restart and does not coordinate between replicas, so it stops a runaway script,
+not a determined adversary. Anything stronger belongs in front of the app.
 
 ## The CI split: replay on every pull request, live once a night
 
@@ -158,34 +190,38 @@ currently on disk (`${label_source}`, ${label_pairs} paired items):
 
 ${calibration_table}
 
-**A high kappa here is not the good news it looks like.**
+**The judge agrees on groundedness and does not agree on the other two.**
 
-*The labels are not independent.* The same author wrote the answers and the
-scores (D-0019), including which flaw each answer was built to contain. So
-agreement against them measures whether the judge reconstructs the author's
-intent, not whether it agrees with a person -- and reconstructing a signposted
-intent is a much easier task than judging. A judge scoring well here has
-cleared a bar nobody should care about. Nothing built on these labels should
-be believed, in either direction.
+*Groundedness holds up.* Kappa of 0.800 with the human and judge means within
+0.07 of each other is substantial agreement by any conventional reading. On the
+axis that asks whether a claim is supported by retrieved text, this judge and
+this labeller are measuring the same thing.
 
-*The distribution makes it easier still.* Nine of the ${answer_slots} seed
-answers carry identical top scores on all three axes. Agreement statistics on
-marginals that skewed are unstable: a judge that leans generous will look
-calibrated, and one item moving changes kappa by more than any real
-improvement would.
+*Relevance and citation correctness do not.* Both sit near 0.35, which is fair
+agreement at best. Quadratic kappa stays high on relevance (0.888) because the
+disagreements are near-misses rather than reversals, but on citation
+correctness it drops to 0.539 -- those disagreements are real, not rounding.
 
-The judge itself is no longer the placeholder it was -- these numbers come from
-an LLM through the model client, not from the `judge=heuristic` string-matching
-baseline that ships so the LLM judge has something to beat (D-0021). What is
-still a placeholder is the labels.
+*The citation error has a direction, and it is the wrong one.* The judge scores
+citation correctness 0.333 higher than the human on average. It credits
+citations a person rejects. For a system whose entire claim to trustworthiness
+is that its answers are checkable against the regulation, a judge that is
+systematically generous about citations is the single worst bias it could have,
+because it would score a citation-fabricating generator as acceptable.
 
-What would fix it, in order: label the ${answer_slots} answers through
-`make label` as an independent labeller; grow the eval set past ${answer_slots}
-items so the marginals are less degenerate; regenerate. The pipeline that
-computes kappa, the quadratic-weighted variant, the confusion matrices, the ten
-worst disagreements and the three bias probes is complete and tested -- it is
-the labels that are placeholders, and the report says so on every table it
-prints.
+*One labeller and ${answer_slots} items is not enough to act on.* With a single
+labeller there is no inter-annotator agreement, so a kappa of 0.35 cannot be
+attributed: it may mean the judge is wrong, or it may mean the axis is defined
+loosely enough that two people would not agree either. Those need different
+fixes -- a better judge versus a sharper rubric -- and this measurement cannot
+tell them apart. At n=${answer_slots} a single item also moves kappa by more
+than any plausible real improvement.
+
+What would fix it, in order: a second labeller, so the ceiling of achievable
+agreement is known before the judge is blamed for missing it; more items, so a
+point of kappa means something; then sharper anchors in
+`prompts/judge/rubric_v1.md` for whichever axis the two labellers agree on and
+the judge still misses.
 
 The bias probes, on the current judge: position swap moves no score at all
 (the rule ignores context order by construction, which is what makes it a
@@ -372,7 +408,7 @@ Stated plainly, worst first.
     reports/          generated reports and figures
     baseline.json     the frozen measurement the gate compares against
 
-`CLAUDE.md` is the repo constitution: architecture, invariants, and the things
+`docs/PRINCIPLES.md` is the repo constitution: architecture, invariants, and the things
 that must never be done.
 
 ## License

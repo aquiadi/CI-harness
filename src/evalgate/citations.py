@@ -1,7 +1,7 @@
 """Extracting citations from a generated answer.
 
 This is a regex, and it is worth being explicit about why that does not
-contradict the rule in CLAUDE.md that judge output is never parsed with a
+contradict the rule in docs/PRINCIPLES.md that judge output is never parsed with a
 regex. The rule exists because a half-matching regex over a judge's prose would
 manufacture a score that looks real. Here the input is an *answer*, the output
 is a set of chunk ids whose validity is then checked against the context, and a

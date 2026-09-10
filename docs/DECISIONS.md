@@ -479,7 +479,7 @@ handles it by failing rather than by coercing (see M5).
 2026-09-09, M3
 
 `evalgate.citations` finds `[doc#0007]` in a generated answer with a regular
-expression. `CLAUDE.md` forbids parsing judge output with a regex. These are
+expression. `docs/PRINCIPLES.md` forbids parsing judge output with a regex. These are
 not in tension, and the module docstring says why.
 
 The rule exists because a half-matching regex over a judge's prose invents a
@@ -1052,3 +1052,60 @@ An index would fix that and is not worth building yet. The deeper cost is that
 a resumable sweep spans days, so its cells can straddle a change to the corpus
 or a prompt -- the hashes are what catch that, and the reporting layer already
 refuses to place runs with different fingerprints in one table.
+
+## D-0047 -- The constitution moves to docs/PRINCIPLES.md
+
+2026-09-10, post-M6
+
+`CLAUDE.md` is now `docs/PRINCIPLES.md`. The content is unchanged: it is the
+repository's constitution and every invariant in it still holds.
+
+Why: the filename was a convention of one particular authoring tool, not a
+property of the project. A file whose name announces which assistant read it
+says nothing about the codebase, and this repository is the author's work
+whoever or whatever typed it. `docs/PRINCIPLES.md` says what the file is.
+
+Cost: the old name is what some tools look for automatically, so that pickup is
+lost and a contributor has to be pointed at the file by the README instead.
+That is the correct trade -- the document is for people, and a convention that
+only one tool honours is a poor reason to keep a name that misdescribes the
+file to everyone else.
+
+## D-0048 -- A query interface, and the two switches a public deployment needs
+
+2026-09-10, post-M6
+
+`make serve` now serves a query UI at `/` alongside the existing API, and
+`EVALGATE_API_KEY` and `EVALGATE_RATE_LIMIT_PER_MINUTE` gate `POST /query`.
+
+Why a UI: the API already returned everything needed to check an answer -- the
+citations with a validity flag, the retrieval trace, the cost and the hashes --
+and nobody was going to read it as JSON. The interface renders each
+`[chunk#id]` marker as a button that scrolls to the passage, and labels each
+citation verified or unsupported using the same audit the evaluation uses. That
+makes the repository's central claim visible in the product rather than only in
+a report: an answer over a regulation is worth nothing if the reader cannot
+check it against the text. `RetrievedChunk` gained a `text` field for this; a
+citation nobody can read is not a citation.
+
+The UI is a client of `/query` and adds nothing to the answer path, for the
+reason the serving module already gives: a serving layer that reranks or
+rewrites queries is a different system from the one the Pareto table measures,
+and the table would quietly stop being true.
+
+Why the switches are environment variables and not config: they describe the
+deployment, not the measurement. In the hydra tree a rotated key would change
+the config hash, which would sever the comparability of every run recorded
+either side of the rotation -- a security operation must not invalidate a
+measurement.
+
+`/health` is exempt from both. A load balancer carries no key, and a readiness
+probe that trips the rate limiter takes the service down exactly when it is
+busiest.
+
+Cost: the limiter is a fixed window in process memory. It resets on restart and
+does not coordinate between replicas, so it stops a runaway script and not a
+determined adversary, and the tests say so by name rather than implying more.
+Shared-state limiting belongs in front of the app. The UI is three static files
+with no build step and no framework, which keeps the image small and the
+dependency surface at zero but means it stays deliberately plain.
