@@ -13,6 +13,7 @@ from evalgate.runs.store import (
     RunExistsError,
     RunMeta,
     RunNotFoundError,
+    find_measured,
     list_runs,
     load_meta,
     load_metrics,
@@ -262,3 +263,38 @@ def test_re_measuring_a_configuration_shows_one_row(repo_root: Path) -> None:
     deduplicated = latest_per_config(everything)
     assert len(deduplicated) < len(everything)
     assert len({item.meta.config_hash for item in deduplicated}) == len(deduplicated)
+
+
+def test_a_measured_cell_is_found_by_config_and_corpus(tmp_path: Path) -> None:
+    """The lookup that lets a sweep skip a cell before paying for it."""
+    runs = tmp_path / "runs"
+    write_run(runs, meta("r-1"), rows(), {"composite_quality": 0.5})
+
+    assert find_measured(runs, "c" * 64, "a" * 64) is not None
+    assert find_measured(runs, "c" * 64, "z" * 64) is None, "a new corpus must re-measure"
+    assert find_measured(runs, "z" * 64, "a" * 64) is None, "a new config must re-measure"
+    assert find_measured(tmp_path / "nothing-here", "c" * 64, "a" * 64) is None
+
+
+def test_write_run_cannot_detect_a_duplicate_configuration(tmp_path: Path) -> None:
+    """Why find_measured has to exist at all.
+
+    A run id embeds a timestamp, so two runs of one configuration never collide
+    on disk and `write_run`'s refusal to overwrite never fires. The sweep's
+    duplicate check therefore ran only after `evaluate()` had already spent the
+    API calls, and re-running a sweep re-paid for every cell to discard the
+    result as a duplicate.
+    """
+    runs = tmp_path / "runs"
+    first = write_run(runs, meta("20260101T000000Z-cccccccccccc"), rows(), {"q": 0.5})
+    second = write_run(runs, meta("20270101T000000Z-cccccccccccc"), rows(), {"q": 0.5})
+
+    assert first != second, "same config hash, two directories, no refusal"
+    assert find_measured(runs, "c" * 64, "a" * 64) is not None
+
+
+def test_a_run_id_carries_a_timestamp_so_two_runs_never_collide() -> None:
+    """The mechanism behind the test above, stated directly."""
+    assert make_run_id("c" * 64, "2026-01-01T00:00:00Z") != make_run_id(
+        "c" * 64, "2027-01-01T00:00:00Z"
+    )

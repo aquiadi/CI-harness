@@ -19,15 +19,22 @@ from dataclasses import dataclass
 from omegaconf import DictConfig
 from rich.console import Console
 
-from evalgate.config import AblationConfig, load_config, resolve_path, typed_node
+from evalgate.config import (
+    AblationConfig,
+    config_hash,
+    load_config,
+    resolve_path,
+    typed_node,
+)
 from evalgate.embeddings.local import BackendUnavailableError
 from evalgate.evaluation.runner import evaluate
 from evalgate.generation.factory import build_generator
 from evalgate.judging.factory import build_judge
+from evalgate.models.base import ModelError
 from evalgate.models.client import build_model_client
 from evalgate.pipeline import build_stack
 from evalgate.prompts import load_prompt
-from evalgate.runs.store import RunExistsError, write_run
+from evalgate.runs.store import RunExistsError, find_measured, write_run
 
 console = Console()
 
@@ -79,6 +86,7 @@ def run(overrides: list[str]) -> int:
 
     console.print(f"sweeping {len(cells)} configurations ({len(skipped)} excluded as meaningless)")
     written = 0
+    reused = 0
     for index, cell in enumerate(cells, start=1):
         cfg: DictConfig = load_config(overrides=[*overrides, *cell.overrides])
         prompts = {
@@ -91,6 +99,25 @@ def run(overrides: list[str]) -> int:
 
         try:
             stack = build_stack(cfg)
+        except BackendUnavailableError as exc:
+            skipped.append((cell, f"backend unavailable: {exc}"))
+            console.print(f"[yellow]{index}/{len(cells)} {cell}: skipped, {exc}[/yellow]")
+            continue
+
+        # Before evaluating, not after: evaluate() is where the judge calls are
+        # made, and re-measuring a cell already on disk spends real quota to
+        # produce a result that is then discarded as a duplicate. This is what
+        # makes a sweep resumable across days when a daily token limit stops it
+        # partway.
+        measured = find_measured(runs_dir, config_hash(cfg), stack.corpus.corpus_hash)
+        if measured is not None:
+            reused += 1
+            console.print(
+                f"[dim]{index}/{len(cells)} {cell}: already measured, reusing {measured.name}[/dim]"
+            )
+            continue
+
+        try:
             outcome = evaluate(
                 cfg,
                 stack,
@@ -105,6 +132,19 @@ def run(overrides: list[str]) -> int:
             skipped.append((cell, f"backend unavailable: {exc}"))
             console.print(f"[yellow]{index}/{len(cells)} {cell}: skipped, {exc}[/yellow]")
             continue
+        except ModelError as exc:
+            # A quota or credential failure will hit every remaining cell the
+            # same way, so continuing would write a sweep with holes in it and
+            # report it as complete. Stop, and say how to resume: the cells
+            # already on disk are skipped without being re-paid for.
+            console.print(f"[red]{index}/{len(cells)} {cell}: {exc}[/red]")
+            console.print(
+                f"\n[yellow]sweep stopped at cell {index} of {len(cells)}[/yellow]; "
+                f"{written} written and {reused} reused this pass. "
+                "Re-run the same command to continue from here -- measured cells are "
+                "skipped before any API call is made."
+            )
+            return 1
         try:
             path = write_run(runs_dir, outcome.meta, outcome.rows, outcome.metrics, cfg)
         except RunExistsError:
@@ -123,5 +163,5 @@ def run(overrides: list[str]) -> int:
 
     for cell, reason in skipped:
         console.print(f"[dim]skipped {cell}: {reason}[/dim]")
-    console.print(f"{written} runs written to {runs_dir}")
+    console.print(f"{written} runs written to {runs_dir}, {reused} reused from earlier passes")
     return 0

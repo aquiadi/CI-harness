@@ -1013,3 +1013,42 @@ one configuration. That is a wordier banner, and it will need splitting again
 as the frontier catches up. The alternative -- one blanket disclaimer covering
 both -- would be false about whichever half moved first, and invariant 4 says
 a number without its fingerprint is not a result.
+
+## D-0046 -- The sweep is resumable, because it has to be
+
+2026-09-10, post-M6
+
+`ablate` now looks for an existing run with the same config hash and corpus
+hash *before* calling `evaluate()`, and stops cleanly on a `ModelError` with
+instructions to re-run.
+
+Why: a Groq free-tier daily token limit stopped a 36-cell sweep at cell 3.
+Two cells consumed roughly 197,000 of the 200,000 daily tokens, which puts the
+whole sweep at about two cells per day, or eighteen days. That is only
+survivable if the sweep resumes, and it did not.
+
+`ablate` did have an "already measured, skipping" branch, but it was
+unreachable. It caught `RunExistsError` from `write_run`, which fires when a
+run directory already exists -- and a run id is `{timestamp}-{config_hash}`, so
+two runs of one configuration never collide. The branch had never once
+executed. Worse, it sat *after* `evaluate()`, so even had it fired, the API
+calls were already spent and the result was discarded. Re-running a stopped
+sweep re-paid for every completed cell from the beginning, which on a daily
+quota means day two re-buys day one and never advances.
+
+The new check keys on config hash *and* corpus hash: the same configuration
+against a different corpus is a different measurement and must be re-run.
+It sits after `build_stack`, which is free, and before `evaluate`, which is not.
+
+A `ModelError` now ends the sweep rather than propagating as a traceback.
+Continuing would be worse than stopping: a quota failure hits every remaining
+cell identically, so the sweep would fill with holes and report itself
+complete. It stops, says which cell it reached, and says that re-running skips
+what is measured without re-paying.
+
+Cost: `find_measured` reads every run's meta.json on every cell, which is
+linear in the number of runs and will get slow well past a thousand of them.
+An index would fix that and is not worth building yet. The deeper cost is that
+a resumable sweep spans days, so its cells can straddle a change to the corpus
+or a prompt -- the hashes are what catch that, and the reporting layer already
+refuses to place runs with different fingerprints in one table.

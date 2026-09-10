@@ -141,6 +141,21 @@ def list_runs(runs_root: Path) -> list[Path]:
     return sorted(path for path in runs_root.iterdir() if (path / META_FILE).is_file())
 
 
+def find_measured(runs_root: Path, config_hash: str, corpus_hash: str) -> Path | None:
+    """An existing run of this exact configuration against this exact corpus.
+
+    Exists so that a sweep can decline to re-measure a cell *before* paying for
+    it. `write_run` refuses to overwrite, but a run id carries a timestamp, so
+    two runs of one configuration never collide on disk and that refusal never
+    fires -- the duplicate was always detected after the API calls were spent.
+    """
+    for path in list_runs(runs_root):
+        meta = load_meta(path)
+        if meta.config_hash == config_hash and meta.corpus_hash == corpus_hash:
+            return path
+    return None
+
+
 def resolve_run(runs_root: Path, run_id: str | None) -> Path:
     """Locate a run by id, defaulting to the most recent."""
     runs = list_runs(runs_root)
