@@ -1,6 +1,21 @@
-# Pinned source documents. URLs are stable EUR-Lex / DG TAXUD endpoints; the
-# manifest records the SHA256 of whatever was actually downloaded, so a silent
-# upstream edit shows up as a hash change rather than as drifting eval numbers.
+# Pinned source documents. The manifest records the SHA256 of whatever was
+# actually downloaded, so a silent upstream edit shows up as a hash change
+# rather than as drifting eval numbers.
+#
+# Two classes of URL here, and they rot differently:
+#
+#   CELEX:32023R0956    an act as published. Stable; this is the good kind.
+#   CELEX:02023R0956-*  a consolidated text at a date. The date suffix is a
+#                       version, so it goes stale every time the act is
+#                       amended, and a stale one 404s rather than quietly
+#                       serving something older.
+#   taxation-customs/*  DG TAXUD guidance. These are files in a CMS and get
+#                       moved without redirects. Verify against
+#                       https://taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism_en
+#                       rather than trusting the path below.
+#
+# `make corpus` reports each document's real status, so run it rather than
+# assuming: since the body is now validated, an OK line means a real PDF.
 name: cbam
 request_timeout_s: 120.0
 max_attempts: 3

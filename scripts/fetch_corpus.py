@@ -37,6 +37,26 @@ console = Console()
 # 404 and 410 mean the document is not there; anything else is a transport or
 # server problem worth retrying.
 _MISSING_STATUSES = frozenset({404, 410})
+# The first bytes of a PDF. Checked because a 2xx is a statement about the
+# HTTP exchange, not about the body: EUR-Lex answers 202 with an HTML holding
+# page while it renders a PDF, and writing that to disk produces a document
+# that ingests to zero chunks and a corpus hash that looks perfectly valid.
+_PDF_MAGIC = b"%PDF-"
+
+
+def body_rejection(content: bytes, content_type: str, kind: str) -> str | None:
+    """Why this response body is not the document, or None if it is.
+
+    A corpus that silently contains an empty file is worse than one that is
+    missing it: the pipeline reports on a missing document and carries on,
+    whereas an empty one is measured, hashed and reported as real.
+    """
+    if not content:
+        return "empty response body"
+    if kind == "pdf" and not content.startswith(_PDF_MAGIC):
+        preview = content[:40].decode("utf-8", errors="replace").strip()
+        return f"body is not a PDF (content-type={content_type or 'unset'}, starts {preview!r})"
+    return None
 
 
 def _entry(
@@ -73,6 +93,15 @@ def _reuse_existing(
 ) -> ManifestEntry | None:
     """Return a manifest entry for an already-downloaded file, if it is intact."""
     if not path.is_file():
+        return None
+    rejection = body_rejection(path.read_bytes(), "", source.kind)
+    if rejection is not None:
+        # Without this, one bad download is permanent: the file exists, so every
+        # later run reports it as cached and never tries again.
+        console.print(
+            f"[yellow]{source.id}: cached file rejected ({rejection}); re-downloading[/yellow]"
+        )
+        path.unlink()
         return None
     digest = sha256_file(path)
     if prior is not None and prior.sha256 is not None and prior.sha256 != digest:
@@ -120,23 +149,31 @@ def fetch_one(
                     http_status=response.status_code,
                     error=f"HTTP {response.status_code}",
                 )
+            content_type = response.headers.get("content-type", "")
             if response.is_success:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(response.content)
-                digest = sha256_file(path)
-                console.print(
-                    f"[green]{source.id}[/green]: {len(response.content):,} bytes, "
-                    f"sha256 {short(digest)}"
-                )
-                return _entry(
-                    source,
-                    FetchStatus.OK,
-                    sha256=digest,
-                    size_bytes=len(response.content),
-                    http_status=response.status_code,
-                    content_type=response.headers.get("content-type"),
-                )
-            last_error = f"HTTP {response.status_code}"
+                rejection = body_rejection(response.content, content_type, source.kind)
+                if rejection is None:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(response.content)
+                    digest = sha256_file(path)
+                    console.print(
+                        f"[green]{source.id}[/green]: {len(response.content):,} bytes, "
+                        f"sha256 {short(digest)}"
+                    )
+                    return _entry(
+                        source,
+                        FetchStatus.OK,
+                        sha256=digest,
+                        size_bytes=len(response.content),
+                        http_status=response.status_code,
+                        content_type=content_type,
+                    )
+                # Retried rather than failed outright: a 202 from EUR-Lex means
+                # the PDF is still being rendered, and the next attempt usually
+                # gets it.
+                last_error = f"HTTP {response.status_code}: {rejection}"
+            else:
+                last_error = f"HTTP {response.status_code}"
 
         if attempt < max_attempts:
             delay = float(2 ** (attempt - 1))

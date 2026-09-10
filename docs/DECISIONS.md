@@ -940,3 +940,42 @@ harness -- the same configuration against a paid key needs only the budget
 numbers raised. The marker strings are Groq-specific and will need revisiting
 if the wording changes; the tests pin the current phrasing so the failure is a
 test, not a silent regression to retrying forever.
+
+## D-0044 -- A 2xx is not a document
+
+2026-09-10, post-M6
+
+`scripts/fetch_corpus.py` validates the response body before writing it: an
+empty body or, for a `kind: pdf` source, one not starting with `%PDF-` is
+rejected and retried rather than written. `_reuse_existing` applies the same
+check to what is already on disk and deletes a file that fails it.
+
+Why: the fetcher treated `response.is_success` as "this is the document". It
+is not. EUR-Lex answers 202 with an HTML holding page while it renders a PDF,
+and 202 is a success status, so the fetcher wrote the holding page -- or, when
+the body was empty, nothing at all -- and recorded it in the manifest as OK
+with `sha256 e3b0c442...`, the hash of zero bytes. Nothing downstream could
+detect this. The document ingests to no chunks, retrieval returns nothing for
+it, and the corpus hash looks exactly as valid as a real one. A corpus that is
+missing a document is a condition the pipeline reports and carries on from; a
+corpus that contains an empty file measured as real is the "synthetic data
+labelled as measured" failure this repository is built to make impossible.
+
+The cache check matters as much as the download check and was the more
+dangerous half. `_reuse_existing` only tested that the path existed, so one bad
+download was permanent: every later `make corpus` found the zero-byte file,
+reported it as cached, and never retried. The bug repaired itself only if
+someone deleted the file by hand, which requires already knowing.
+
+A rejected body is retried rather than failed outright, because the common
+cause -- EUR-Lex still rendering -- resolves on the next attempt. Only after
+the attempt limit does it become an ERROR entry naming the status, the
+content-type and the first bytes received, so the failure says what arrived
+instead of merely that something did.
+
+Cost: the PDF magic-byte check is format-specific and keyed on `source.kind`,
+so a new source kind needs a rule adding. Sniffing content rather than
+trusting `content-type` is deliberate -- the servers that send an HTML error
+page with a 2xx are the same ones that mislabel it -- but it means a valid PDF
+served with a leading byte-order mark would be rejected. No such source exists
+here, and a loud rejection is the right failure for the one that does.
