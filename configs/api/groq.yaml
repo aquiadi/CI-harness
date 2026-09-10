@@ -8,7 +8,7 @@ provider: groq
 mode: live
 cache_enabled: true
 cache_path: ${paths.cache_dir}/model_cache.sqlite
-max_retries: 6
+max_retries: 8
 backoff_initial_s: 2.0
 backoff_max_s: 60.0
 timeout_s: 120.0

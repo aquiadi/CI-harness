@@ -5,7 +5,7 @@
 provider: api
 model: qwen/qwen3.8-27b
 prompt: generation/answer_v1.md
-max_tokens: 4096
+max_tokens: 700
 temperature: 0.0
 input_usd_per_mtok: 0.0
 output_usd_per_mtok: 0.0

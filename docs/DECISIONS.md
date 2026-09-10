@@ -905,3 +905,38 @@ when they are not.
 Cost: a vendor-specific knob in a vendor-neutral request object, which the
 Anthropic client can only refuse. The alternative -- a per-vendor options bag --
 buys generality this repository has no second use for yet.
+
+## D-0043 -- Token budgets are set by the quota, and one 429 is not retryable
+
+2026-09-09, post-M6
+
+`configs/judge/groq.yaml` drops to `max_tokens: 400` and the Groq generators to
+700, and `GroqClient` refuses to retry a 429 that says the request itself
+cannot fit the quota.
+
+Why the budgets: D-0042 raised the judge to 4096 to give a reasoning model
+headroom. That was reasoning about the wrong constraint. Groq charges the
+output-tokens-per-minute quota against the `max_tokens` a request *asks for*,
+not against what it returns, so on a free tier with a 1000 OTPM limit a single
+4096-token request is rejected outright -- `Limit 1000, Requested 1077` -- and
+no amount of waiting helps. A measured judgment is about 150 output tokens, so
+400 is roughly 2.5x what the work needs while letting several calls through per
+minute. The number comes from the quota, and the config says so, because a
+future reader will otherwise "fix" it back up to a generous ceiling.
+
+Why the retry change: the client treated every 429 as transient and burned all
+eight attempts with exponential backoff -- minutes -- to arrive at the identical
+permanent failure, and the error it finally reported was the truncated last
+attempt rather than the cause. `is_oversized_for_quota` separates "you are
+going too fast", which waiting fixes, from "this request can never fit", which
+it does not, and the second fails immediately naming the remedy. Matching on
+the message text is unlovely, but the status code alone cannot distinguish the
+two cases and silently retrying the wrong one costs minutes per call.
+
+Cost: on this quota the judge runs at a few calls per minute, so a 15-answer
+eval set takes several minutes rather than seconds, and the full ablation sweep
+is impractical on the free tier. That is a property of the tier, not of the
+harness -- the same configuration against a paid key needs only the budget
+numbers raised. The marker strings are Groq-specific and will need revisiting
+if the wording changes; the tests pin the current phrasing so the failure is a
+test, not a silent regression to retrying forever.

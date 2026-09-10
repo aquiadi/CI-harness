@@ -8,8 +8,9 @@
 provider: api
 model: openai/gpt-oss-20b
 prompt: generation/answer_v1.md
-# Reasoning tokens are charged against this before the answer starts.
-max_tokens: 4096
+# Charged against the same per-minute quota as the judge; see
+# configs/judge/groq.yaml.
+max_tokens: 700
 temperature: 0.0
 input_usd_per_mtok: 0.0
 output_usd_per_mtok: 0.0

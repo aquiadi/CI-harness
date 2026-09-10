@@ -25,6 +25,7 @@ from evalgate.models.groq_client import (
     GroqClient,
     MissingCredentialsError,
     build_payload,
+    is_oversized_for_quota,
     parse_response,
     tool_to_openai,
 )
@@ -343,3 +344,52 @@ def test_the_groq_judge_needs_no_reasoning_effort_to_call_its_tool() -> None:
     assert cfg.judge.reasoning_effort is None
     alternative: DictConfig = load_config(overrides=["+experiment=groq", "judge=groq_gptoss"])
     assert alternative.judge.reasoning_effort == "low"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Request too large for model `m` on output tokens per minute (OTPM): Limit 1000",
+        "The request's expected output tokens exceed the enforced limit; reduce max_tokens",
+    ],
+)
+def test_a_429_that_waiting_cannot_fix_is_not_retried(body: str) -> None:
+    """Retrying this burns the whole backoff schedule to reach the same failure."""
+    assert is_oversized_for_quota(429, body)
+
+
+def test_an_ordinary_rate_limit_is_still_retried() -> None:
+    """Going too fast is exactly what backoff is for."""
+    assert not is_oversized_for_quota(429, "Rate limit reached, please try again later")
+    assert not is_oversized_for_quota(500, "Request too large")
+
+
+def test_an_oversized_request_fails_immediately_with_the_remedy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import httpx
+
+    calls: list[int] = []
+
+    def fake_post(*args: object, **kwargs: object) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(
+            429,
+            text=(
+                "Request too large for model `qwen` on output tokens per minute "
+                "(OTPM): Limit 1000, Requested 1077."
+            ),
+        )
+
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setattr(httpx, "post", fake_post)
+    client = GroqClient(timeout_s=1.0, max_retries=8, backoff_initial_s=0.0, backoff_max_s=0.0)
+    with pytest.raises(ModelError, match="per-minute token quota"):
+        client.complete(request())
+    assert calls == [1], "an unfittable request must not be retried"
+
+
+def test_the_groq_judge_budget_is_set_by_the_quota_not_the_rubric() -> None:
+    """A ceiling above the per-minute quota makes every call fail outright."""
+    cfg: DictConfig = load_config(overrides=["+experiment=groq"])
+    assert cfg.judge.max_tokens <= 1000

@@ -21,9 +21,13 @@
 provider: api
 model: qwen/qwen3.8-27b
 prompt: judge/rubric_v1.md
-# Reasoning tokens count against this budget before any answer is emitted, so
-# a reasoning model needs materially more headroom than a plain one.
-max_tokens: 4096
+# Sized by the free tier's output-tokens-per-minute quota, not by what a
+# judgment needs. Groq charges the quota against the max_tokens a request asks
+# for rather than what it returns, so a generous ceiling is not free: at 4096
+# a single call exceeded a 1000 OTPM limit outright and could never succeed.
+# A measured judgment is ~150 tokens, so this is roughly 2.5x what it uses
+# while letting several calls through per minute.
+max_tokens: 400
 temperature: 0.0
 max_attempts: 3
 axes: [groundedness, relevance, citation_correctness]

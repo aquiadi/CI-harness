@@ -41,6 +41,25 @@ MODEL_HELP = (
     "Groq retires model ids regularly; check the current list at "
     "https://console.groq.com/docs/models and set judge.model / generator.model."
 )
+# A 429 usually means "you are going too fast", which waiting fixes. It can
+# also mean "this single request can never fit inside your per-minute quota",
+# which waiting never fixes -- the tokens-per-minute ceiling is compared
+# against the max_tokens the request asks for, not against what it would
+# actually have used. These markers separate the second case from the first.
+OVERSIZED_MARKERS = ("request too large", "reduce max_tokens", "exceed the enforced limit")
+QUOTA_HELP = (
+    "This request cannot fit the account's per-minute token quota no matter how long "
+    "it waits, because the quota is charged against the max_tokens the request asks "
+    "for. Lower judge.max_tokens / generator.max_tokens below the stated limit."
+)
+
+
+def is_oversized_for_quota(status_code: int, body: str) -> bool:
+    """Whether a 429 will still fail after any amount of waiting."""
+    if status_code != 429:
+        return False
+    lowered = body.lower()
+    return any(marker in lowered for marker in OVERSIZED_MARKERS)
 
 
 class MissingCredentialsError(ModelError):
@@ -178,6 +197,10 @@ class GroqClient:
                 if response.is_success:
                     return parse_response(response.json(), time.perf_counter() - started, attempt)
                 last = f"HTTP {response.status_code}: {response.text[:300]}"
+                if is_oversized_for_quota(response.status_code, response.text):
+                    # Retrying this burns the full backoff schedule -- minutes --
+                    # to arrive at the identical failure.
+                    raise ModelError(f"{request.model}: {last}\n{QUOTA_HELP}")
                 if response.status_code not in RETRYABLE_STATUS:
                     hint = f"\n{MODEL_HELP}" if "model" in response.text.lower() else ""
                     raise ModelError(f"{request.model}: {last}{hint}")
