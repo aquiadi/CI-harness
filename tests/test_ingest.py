@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -82,12 +83,57 @@ def test_missing_manifest_is_refused(tmp_path: Path) -> None:
         load_corpus("cbam", tmp_path / "raw", tmp_path / "manifest.json")
 
 
-def test_manifest_with_no_fetched_documents_is_refused(repo_root: Path, tmp_path: Path) -> None:
+def write_manifest_json(path: Path, entries: list[dict[str, object]]) -> Path:
+    """A manifest built for the test rather than borrowed from the repo."""
+    path.write_text(
+        json.dumps({"corpus": "cbam", "generated_at": "2026-01-01T00:00:00Z", "entries": entries}),
+        encoding="utf-8",
+    )
+    return path
+
+
+def manifest_entry(doc_id: str, status: str, **extra: object) -> dict[str, object]:
+    return {
+        "id": doc_id,
+        "title": doc_id,
+        "url": f"https://example.invalid/{doc_id}.pdf",
+        "filename": f"{doc_id}.pdf",
+        "kind": "pdf",
+        "required": True,
+        "status": status,
+        "fetched_at": "2026-01-01T00:00:00Z",
+        **extra,
+    }
+
+
+def test_manifest_with_no_fetched_documents_is_refused(tmp_path: Path) -> None:
     """A manifest with no successful fetches must fail loudly.
 
-    The committed manifest records every source as unreachable from the build
-    sandbox, so this is the path a fresh clone hits before `make corpus`.
+    This is the path a fresh clone hits before `make corpus`. It builds its own
+    manifest rather than reading the committed one: that file is data, and once
+    a real corpus was fetched it stopped describing an empty one, so borrowing
+    it made this test fail for a reason unrelated to what it asserts.
     """
-    manifest_path = repo_root / "data" / "corpus" / "manifest.json"
+    manifest_path = write_manifest_json(
+        tmp_path / "manifest.json",
+        [
+            manifest_entry("reg_a", "missing", error="HTTP 404"),
+            manifest_entry("reg_b", "error", error="ConnectError"),
+        ],
+    )
     with pytest.raises(IngestError, match="records no successfully fetched documents"):
+        load_corpus("cbam", tmp_path / "raw", manifest_path)
+
+
+def test_a_manifest_that_promises_a_file_that_is_not_there_is_refused(tmp_path: Path) -> None:
+    """The other half: OK in the manifest but nothing on disk.
+
+    Reached by cloning a repo whose manifest is committed while the PDFs it
+    names are gitignored, so it is the first thing a new contributor hits.
+    """
+    manifest_path = write_manifest_json(
+        tmp_path / "manifest.json",
+        [manifest_entry("reg_a", "ok", sha256="0" * 64, bytes=1024)],
+    )
+    with pytest.raises(IngestError, match="is missing; run `make corpus`"):
         load_corpus("cbam", tmp_path / "raw", manifest_path)

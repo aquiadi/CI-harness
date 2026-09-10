@@ -979,3 +979,37 @@ trusting `content-type` is deliberate -- the servers that send an HTML error
 page with a 2xx are the same ones that mislabel it -- but it means a valid PDF
 served with a leading byte-order mark would be rejected. No such source exists
 here, and a loud rejection is the right failure for the one that does.
+
+## D-0045 -- The README's prose went stale while its numbers stayed correct
+
+2026-09-10, post-M6
+
+`tests/test_readme.py` guarantees every *number* in the README matches the
+current artifacts. It cannot check the sentences around them, and after the
+first real judge run those sentences were wrong in three places: the headline
+called a kappa of 1.000 "bad", the limitations section blamed a rule-based
+judge for numbers a real LLM judge had produced, and the corpus limitation said
+`corpus=cbam` was waiting on network access that now works.
+
+The template prose now states what a number measures rather than delivering a
+verdict on its value, which is what made it go stale: "which is bad" was true
+of 0.030 and false of 1.000, while "these labels are not independent" is true
+of both. A hand-written adjective about a generated number is a hand-written
+number wearing a disguise.
+
+`tests/test_ingest.py::test_manifest_with_no_fetched_documents_is_refused` also
+had to change, for the same underlying reason. It asserted on the *committed*
+manifest, whose emptiness was a property of the build sandbox rather than of
+the code. Once a real corpus was fetched, the test failed for a reason
+unrelated to what it asserts. It now builds its own manifest, and a second test
+covers the other half -- a manifest promising a file that is not on disk, which
+is what a fresh clone hits, since the manifest is committed and the PDFs are
+gitignored.
+
+Cost: the README banner now has to distinguish the ablation frontier (still
+synthetic corpus, rule-based judge, extractive generator) from the calibration
+section (real LLM judge), because those two sets of numbers no longer describe
+one configuration. That is a wordier banner, and it will need splitting again
+as the frontier catches up. The alternative -- one blanket disclaimer covering
+both -- would be false about whichever half moved first, and invariant 4 says
+a number without its fingerprint is not a result.

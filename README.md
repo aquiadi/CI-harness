@@ -2,25 +2,28 @@
 
 A retrieval-augmented question answering system over EU CBAM regulatory
 documents whose actual product is the evaluation harness around it: an LLM
-judge validated against human labels, a 58-configuration retrieval
+judge validated against human labels, a 63-configuration retrieval
 ablation on a cost/latency/quality frontier, and a CI gate that fails a pull
 request when quality regresses. On the frozen baseline it scores **0.828
 composite quality** at **11.4 ms p95** and a projected **$0.01047
-per query**; the judge currently agrees with the available labels at a Cohen's
-kappa of **0.030 groundedness / 0.005 relevance / 0.268 citation correctness**, which is bad, and the section below says
-why and what would fix it.
+per query**; the judge agrees with the available labels at a Cohen's kappa of
+**1.000 groundedness / 0.500 relevance / 0.872 citation correctness** -- a number that should not be read as a validated
+judge, because those labels are not independent. The section below says why.
 
 The RAG application is deliberately ordinary. The measurement is the point.
 
-> **Read this before the numbers.** Every figure here was produced against a
-> **synthetic** corpus, with a **rule-based judge** and a **no-model generator**,
-> because the environment this repository was built in could reach neither the
-> EU document servers nor an API key (`docs/DECISIONS.md`, D-0009). The harness
-> is real and the numbers are really measured; what they are measured on is
-> weaker than the system this repo is designed to run. Every one of those
-> substitutions is a config flag, and `docs/DECISIONS.md` records each with its
-> cost. This README is generated from the artifacts by `make readme`, so no
-> number in it was typed by hand.
+> **Read this before the numbers.** The ablation frontier below was produced
+> against a **synthetic** corpus, with a **rule-based judge** and a **no-model
+> generator**, because the environment this repository was built in could reach
+> neither the EU document servers nor an API key (`docs/DECISIONS.md`, D-0009).
+> The judge calibration section is the exception: those scores come from a real
+> LLM judge through the model client. The two sets of numbers therefore do not
+> describe the same configuration and must not be read together. The harness is
+> real and the numbers are really measured; what they are measured on is weaker
+> than the system this repo is designed to run. Every one of those substitutions
+> is a config flag, and `docs/DECISIONS.md` records each with its cost. This
+> README is generated from the artifacts by `make readme`, so no number in it
+> was typed by hand.
 
 ## Architecture
 
@@ -155,31 +158,38 @@ currently on disk (`seed-author`, 15 paired items):
 
 | axis | n | kappa | quadratic kappa | exact agreement | mean human | mean judge |
 | --- | --- | --- | --- | --- | --- | --- |
-| groundedness | 15 | 0.030 | 0.269 | 0.133 | 4.27 | 3.87 |
-| relevance | 15 | 0.005 | 0.087 | 0.067 | 4.60 | 2.60 |
-| citation_correctness | 15 | 0.268 | 0.372 | 0.600 | 3.93 | 3.40 |
+| groundedness | 15 | 1.000 | 1.000 | 1.000 | 4.27 | 4.27 |
+| relevance | 15 | 0.500 | 0.906 | 0.800 | 4.60 | 4.40 |
+| citation_correctness | 15 | 0.872 | 0.986 | 0.933 | 3.93 | 4.00 |
 
-**These numbers are bad, and two separate things are wrong with them.**
-
-*The judge is a rule.* `judge=heuristic` is a string-matching baseline that
-ships specifically so the LLM judge has something to beat (`docs/DECISIONS.md`,
-D-0021). It scores groundedness by content-word overlap with the retrieved
-context, which cannot tell a supported claim from an unsupported one that
-happens to reuse the vocabulary -- and the seed answers were written to contain
-exactly that failure. A kappa near zero is the correct result for that rule on
-that data, and it is the reason the LLM judge exists.
+**A high kappa here is not the good news it looks like.**
 
 *The labels are not independent.* The same author wrote the answers and the
-scores (D-0019), so agreement against them measures whether the judge
-reconstructs the author's intent, not whether it agrees with a person. Nothing
-built on them should be believed.
+scores (D-0019), including which flaw each answer was built to contain. So
+agreement against them measures whether the judge reconstructs the author's
+intent, not whether it agrees with a person -- and reconstructing a signposted
+intent is a much easier task than judging. A judge scoring well here has
+cleared a bar nobody should care about. Nothing built on these labels should
+be believed, in either direction.
+
+*The distribution makes it easier still.* Nine of the 15 seed
+answers carry identical top scores on all three axes. Agreement statistics on
+marginals that skewed are unstable: a judge that leans generous will look
+calibrated, and one item moving changes kappa by more than any real
+improvement would.
+
+The judge itself is no longer the placeholder it was -- these numbers come from
+an LLM through the model client, not from the `judge=heuristic` string-matching
+baseline that ships so the LLM judge has something to beat (D-0021). What is
+still a placeholder is the labels.
 
 What would fix it, in order: label the 15 answers through
-`make label` to get independent labels; record cassettes with an API key so
-`judge=sonnet` runs; regenerate. The pipeline that computes kappa, the
-quadratic-weighted variant, the confusion matrices, the ten worst
-disagreements and the three bias probes is complete and tested -- it is the
-inputs that are placeholders, and the report says so on every table it prints.
+`make label` as an independent labeller; grow the eval set past 15
+items so the marginals are less degenerate; regenerate. The pipeline that
+computes kappa, the quadratic-weighted variant, the confusion matrices, the ten
+worst disagreements and the three bias probes is complete and tested -- it is
+the labels that are placeholders, and the report says so on every table it
+prints.
 
 The bias probes, on the current judge: position swap moves no score at all
 (the rule ignores context order by construction, which is what makes it a
@@ -190,21 +200,21 @@ and has not run.
 ## The ablation frontier
 
 Full report with both frontier figures:
-[`reports/pareto.md`](reports/pareto.md). 58 configurations measured
+[`reports/pareto.md`](reports/pareto.md). 63 configurations measured
 over {chunker} x {retriever} x {k}; the nine cross-encoder rerank cells need
 the `ml` extra and are listed in the report as unmeasured. `*` marks a
 configuration on at least one frontier.
 
 |  | config | quality | recall@k | nDCG@10 | p95 ms | projected $/q |
 | --- | --- | --- | --- | --- | --- | --- |
-| * | recursive/hybrid/k=10/local | 0.835 | 0.867 | 0.548 | 18.2 | 0.009963 |
-|  | fixed/hybrid_rerank/k=10 | 0.832 | 0.933 | 0.570 | 5182.1 | 0.010201 |
-| * | section/dense/k=10/local | 0.832 | 0.933 | 0.692 | 18.9 | 0.007482 |
+| * | recursive/hybrid/k=10/local | 0.835 | 0.867 | 0.548 | 23.1 | 0.009963 |
+|  | fixed/hybrid_rerank/k=10 | 0.832 | 0.933 | 0.570 | 4731.7 | 0.010201 |
+| * | section/dense/k=10/local | 0.832 | 0.933 | 0.692 | 24.0 | 0.007482 |
+|  | section/hybrid/k=10/local | 0.830 | 0.933 | 0.635 | 104.9 | 0.007672 |
 | * | fixed/hybrid/k=10/hashed | 0.828 | 0.867 | 0.437 | 11.4 | 0.010471 |
-| * | section/dense/k=5/local | 0.822 | 0.933 | 0.692 | 17.6 | 0.004601 |
-|  | fixed/dense/k=10/local | 0.820 | 0.800 | 0.611 | 17.6 | 0.010624 |
-|  | recursive/dense/k=10/local | 0.817 | 0.867 | 0.596 | 19.4 | 0.009960 |
-|  | recursive/hybrid_rerank/k=10 | 0.817 | 0.867 | 0.568 | 3669.9 | 0.009687 |
+| * | section/hybrid_rerank/k=5 | 0.825 | 0.933 | 0.735 | 6617.6 | 0.005137 |
+|  | section/hybrid_rerank/k=10 | 0.825 | 0.933 | 0.735 | 13964.4 | 0.007965 |
+| * | section/dense/k=5/local | 0.822 | 0.933 | 0.692 | 62.0 | 0.004601 |
 
 Three things the sweep says, on this corpus:
 
@@ -309,19 +319,25 @@ Both decisions are recorded with their tradeoffs in `docs/DECISIONS.md`.
 
 Stated plainly, worst first.
 
-1. **The judge is not validated.** Kappa against the only labels on disk is
-   near zero on two of three axes, and those labels are not independent anyway.
+1. **The judge is not validated.** An LLM judge now runs and scores well
+   against the labels on disk, but those labels are not independent: the same
+   author wrote the answers, the flaw each one carries, and the score it
+   deserves (D-0019). Agreement with them is not evidence about agreement with
+   a person, and a high number there is no more meaningful than a low one.
    Nothing in this repository currently demonstrates that an LLM judge agrees
    with a person about CBAM answers. What it demonstrates is a pipeline that
-   would measure exactly that, plus a rule-based baseline that fails it in the
-   way a string-matching rule should. Fixing it needs human labelling and an
-   API key, in that order.
+   would measure exactly that. Fixing it needs independent human labelling --
+   which is now the only remaining blocker, the API key having stopped being
+   one.
 2. **The corpus is synthetic.** Five documents written for this repository in
    the structural style of the CBAM instruments, marked as such in every file
    (D-0016). It is smaller, shallower and more regular than the real
    regulation: shorter sentences, fewer cross-references, no 400-word
    provisions. Absolute numbers here are optimistic against the real corpus.
-   `corpus=cbam` switches over once `make corpus` can reach EUR-Lex.
+   `make corpus` now fetches the real instruments -- the CBAM regulation, the
+   implementing regulation, both guidance documents and the ETS directive, with
+   only the date-pinned consolidated text still 404ing -- so switching is a
+   matter of re-running the pipeline under `corpus=cbam`, not of network access.
 3. **The measured generator makes no API call.** The committed frontier uses
    the extractive baseline, so every quality figure is a floor, and the cost
    axis is a projection rather than spend (D-0028). The relative ordering of
