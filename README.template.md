@@ -1,29 +1,29 @@
 # evalgate
 
-A retrieval-augmented question answering system over EU CBAM regulatory
-documents whose actual product is the evaluation harness around it: an LLM
-judge validated against human labels, a ${n_configs}-configuration retrieval
-ablation on a cost/latency/quality frontier, and a CI gate that fails a pull
-request when quality regresses. On the frozen baseline it scores **${quality}
-composite quality** at **${p95_ms} ms p95** and a projected **$$${projected_cost}
-per query**; the judge agrees with the available labels at a Cohen's kappa of
-**${calibration_headline}** -- a number that should not be read as a validated
-judge, because those labels are not independent. The section below says why.
+A RAG system over EU CBAM regulatory documents. The RAG part is deliberately
+boring. What I actually built is the harness around it: an LLM judge whose
+agreement with human labels is measured rather than assumed, a
+${n_configs}-configuration retrieval sweep on a cost/latency/quality frontier,
+and a CI gate that fails a pull request when quality drops.
 
-The RAG application is deliberately ordinary. The measurement is the point.
+The frozen baseline scores ${quality} composite quality at ${p95_ms} ms p95,
+with a projected ${projected_cost} dollars per query. The judge agrees with my
+labels at a Cohen's kappa of ${calibration_headline} across the three axes.
+That spread is the interesting part, and I break it down below.
 
-> **Read this before the numbers.** The ablation frontier below was produced
-> against a **synthetic** corpus, with a **rule-based judge** and a **no-model
-> generator**, because the environment this repository was built in could reach
-> neither the EU document servers nor an API key (`docs/DECISIONS.md`, D-0009).
-> The judge calibration section is the exception: those scores come from a real
-> LLM judge through the model client. The two sets of numbers therefore do not
-> describe the same configuration and must not be read together. The harness is
-> real and the numbers are really measured; what they are measured on is weaker
-> than the system this repo is designed to run. Every one of those substitutions
-> is a config flag, and `docs/DECISIONS.md` records each with its cost. This
-> README is generated from the artifacts by `make readme`, so no number in it
-> was typed by hand.
+Most RAG projects I have read optimise the retriever and then guess at whether
+it got better. This one is the other way round.
+
+> Before you read the numbers: the ablation frontier ran on a synthetic corpus,
+> with the rule-based judge and the extractive generator, because I built this
+> in an environment that could reach neither the EU document servers nor an API
+> key (D-0009 in the decision log). The calibration section is different - those
+> scores came from a real LLM judge. So the two sets of numbers describe
+> different configurations and you cannot read them together. The harness is
+> real and the numbers are real measurements; what they measure is weaker than
+> what this is designed to run on. Every substitution is a config flag with its
+> cost written down. The README itself is rendered from the artifacts by
+> `make readme`, so nothing in it was typed by hand.
 
 ## Architecture
 
@@ -136,44 +136,41 @@ not a determined adversary. Anything stronger belongs in front of the app.
 
 ## The CI split: replay on every pull request, live once a night
 
-This is the most interesting engineering decision in the project, so it gets
-the most space.
+This is the part I would want to talk about in a design review.
 
-An evaluation harness that calls a model has a problem: the thing that makes it
-valuable -- running on every pull request -- is also what makes it expensive and
-flaky. Running the full suite live on every push costs money per push, takes
-minutes, and fails for reasons that have nothing to do with the change under
-review: a rate limit, a timeout, a model that is one token less deterministic
-than it was yesterday. Teams respond by running the suite nightly instead, and
-a gate that runs after the merge is not a gate.
+A harness that calls a model has an awkward property: the thing that makes it
+worth having, running on every pull request, is also what makes it slow,
+expensive and flaky. Run the full suite live on every push and you pay per
+push, wait minutes, and eat failures that have nothing to do with the change
+under review - a rate limit, a timeout, a model that came back one token less
+deterministic than yesterday. So teams move it to a nightly job, and a gate
+that runs after the merge is not a gate.
 
-evalgate splits the difference:
+The split here is:
 
-**Every pull request replays.** All model access goes through one client stack
-with three modes. In `replay` -- the default, and what CI runs -- a call is
-served from a committed cassette: one JSON file per call, holding the request
-and the response, reviewable in a diff. An unmatched call is an error, never a
-network request. The result is a full evaluation, including generation, judging
-and the quality gate, that is deterministic, takes seconds, costs nothing, and
-cannot fail because of somebody else's rate limit. A change that alters a
-prompt, a model or a config surfaces as a cassette miss with the command to
-re-record, rather than as a surprise invoice.
+Every pull request replays. Model access goes through one client stack with
+three modes, and `replay` is the default. A call gets served from a committed
+cassette: one JSON file holding the request and response, reviewable in a diff.
+An unmatched call is an error, never a network request. You get the full
+evaluation - generation, judging, gate and all - in seconds, deterministically,
+for nothing, and it cannot fail because of somebody else's quota. Change a
+prompt, a model or a config and you get a cassette miss telling you to
+re-record, rather than a surprise invoice.
 
-**One scheduled job runs live.** `.github/workflows/nightly.yml` fetches the
-real corpus, installs the local encoder, and runs the same suite against the
-real API with its own frozen baseline (`baseline.live.json`). If the gate fails
-it opens an issue. Drift that only a live model can show -- a provider-side
-model update, a change in refusal behaviour, latency creep -- is found there, at
-a cost of one run a day rather than one per push.
+One scheduled job runs live. `.github/workflows/nightly.yml` pulls the real
+corpus, installs the local encoder, and runs the same suite against the real
+API with its own frozen baseline. If the gate fails it opens an issue. Things
+only a live model can show you - a provider-side update, changed refusal
+behaviour, latency creep - surface there, once a day instead of once a push.
 
-The two halves catch different things and neither substitutes for the other.
-Replay catches "this change made retrieval worse", which is most changes. Live
-catches "the world moved underneath us", which is rarer and slower-moving. The
-split is what makes it affordable to gate every pull request on quality at all.
+Neither half substitutes for the other. Replay catches "this change made
+retrieval worse", which is most changes. Live catches "the world moved under
+us", which is rarer and slower. Together they are what make it affordable to
+gate every PR on quality at all.
 
-`make record` re-records the cassettes; the recording is a reviewable diff, so
-a change in what the model says is something a human sees rather than something
-that silently shifts a number.
+`make record` re-records the cassettes. The recording is a reviewable diff, so
+a change in what the model says is something a person looks at rather than a
+number that quietly shifts.
 
 *State of the cassettes in this repository:* empty. The environment this repo
 was built in had no API credentials, so no live call was ever made and there
@@ -190,38 +187,38 @@ currently on disk (`${label_source}`, ${label_pairs} paired items):
 
 ${calibration_table}
 
-**The judge agrees on groundedness and does not agree on the other two.**
+The judge and I agree on one axis out of three, and the axis we disagree on
+worst is the one that matters most here.
 
-*Groundedness holds up.* Kappa of 0.800 with the human and judge means within
-0.07 of each other is substantial agreement by any conventional reading. On the
-axis that asks whether a claim is supported by retrieved text, this judge and
-this labeller are measuring the same thing.
+Groundedness comes out at 0.800, with our means within 0.07 of each other.
+That is substantial agreement by any conventional reading. On the question of
+whether a claim is actually supported by the retrieved text, the judge and I
+are measuring the same thing.
 
-*Relevance and citation correctness do not.* Both sit near 0.35, which is fair
-agreement at best. Quadratic kappa stays high on relevance (0.888) because the
-disagreements are near-misses rather than reversals, but on citation
-correctness it drops to 0.539 -- those disagreements are real, not rounding.
+Relevance and citation correctness both sit near 0.35. That is fair agreement
+at best. Quadratic kappa stays high on relevance (0.888) because our
+disagreements there are near-misses, not reversals - but on citation
+correctness it falls to 0.539, which means those gaps are real.
 
-*The citation error has a direction, and it is the wrong one.* The judge scores
-citation correctness 0.333 higher than the human on average. It credits
-citations a person rejects. For a system whose entire claim to trustworthiness
-is that its answers are checkable against the regulation, a judge that is
-systematically generous about citations is the single worst bias it could have,
-because it would score a citation-fabricating generator as acceptable.
+Then there is the direction of the error. The judge scores citation correctness
+0.333 higher than I do, on average. It credits citations I rejected. For a
+system whose whole claim is that its answers are checkable against the
+regulation, that is the worst way round for the bias to run: a judge this
+generous about citations would happily pass a generator that fabricates them.
 
-*One labeller and ${answer_slots} items is not enough to act on.* With a single
-labeller there is no inter-annotator agreement, so a kappa of 0.35 cannot be
-attributed: it may mean the judge is wrong, or it may mean the axis is defined
-loosely enough that two people would not agree either. Those need different
-fixes -- a better judge versus a sharper rubric -- and this measurement cannot
-tell them apart. At n=${answer_slots} a single item also moves kappa by more
-than any plausible real improvement.
+I want to be careful about what I can conclude from that, though. One labeller
+and ${answer_slots} items gives me no inter-annotator agreement, so a kappa of
+0.35 is unattributable. It might mean the judge is wrong. It might mean the
+axis is loose enough that two people would not agree either. Those want
+different fixes - a better judge versus a sharper rubric - and this measurement
+cannot tell me which. At n=${answer_slots} one item also moves kappa further
+than any improvement I would plausibly make.
 
-What would fix it, in order: a second labeller, so the ceiling of achievable
-agreement is known before the judge is blamed for missing it; more items, so a
-point of kappa means something; then sharper anchors in
-`prompts/judge/rubric_v1.md` for whichever axis the two labellers agree on and
-the judge still misses.
+So the order of work is: a second labeller first, to find out what agreement
+is even achievable before blaming the judge for missing it; then more items, so
+a point of kappa means something; then tighter anchors in
+`prompts/judge/rubric_v1.md` for whichever axis two humans agree on and the
+judge still misses.
 
 The bias probes, on the current judge: position swap moves no score at all
 (the rule ignores context order by construction, which is what makes it a
@@ -239,19 +236,21 @@ configuration on at least one frontier.
 
 ${pareto_table}
 
-Three things the sweep says, on this corpus:
+What the sweep says on this corpus:
 
-- **k dominates everything else.** Going from k=3 to k=10 moves recall more
-  than any choice of chunker or retriever, and it is also what moves cost:
-  context tokens per query rise about fivefold across that range.
-- **BM25 is the value pick.** It lands within a few percent of hybrid RRF on
-  quality at roughly a tenth of the p95 latency, because the fusion pays for a
-  dense arm that the hashed embedder makes weak. With real bge embeddings that
-  balance should move, which is exactly the measurement to re-run first.
-- **Dense retrieval is the worst arm throughout.** That is a property of the
-  deterministic hashed embedder, not of dense retrieval, and it is what that
-  embedder is for: it makes the harness free to run and it makes this row of
-  the table meaningless. Read it as a floor.
+k matters more than anything else. Moving from k=3 to k=10 shifts recall
+further than any choice of chunker or retriever, and it is also where the cost
+goes - context tokens per query rise about fivefold across that range.
+
+BM25 is the value pick. It lands within a few percent of hybrid RRF on quality
+at roughly a tenth of the p95 latency. The fusion is paying for a dense arm
+that the hashed embedder makes weak. Swap in real bge embeddings and that
+balance should move, which makes it the first thing worth re-measuring.
+
+Dense retrieval is the worst arm throughout, and you should not believe that.
+It is a property of the deterministic hashed embedder, which is exactly what
+that embedder is for: it makes the harness free to run and it makes this row
+meaningless. Read it as a floor.
 
 ## The gate
 
@@ -264,17 +263,19 @@ more than 2%, p95 latency rises more than 20%, or cost per query rises more
 than 15%. Those thresholds live in `configs/gate/`; none of them appears in
 Python.
 
-Three behaviours are load-bearing:
+Three behaviours in there are load-bearing.
 
-- **Missing data fails.** A metric absent from the run, absent from the
-  baseline, or a missing baseline file are all failures. The state in which a
-  regression is invisible must not be the state in which the build is green.
-- **Changed ground fails.** If the corpus, a prompt or an eval set differs from
-  the baseline's, the comparison is meaningless and the gate refuses rather
-  than producing a number. Changing them is fine; it needs a deliberate
-  `make freeze`, which is a reviewable diff.
-- **Changed configuration does not fail.** The config hash and index hash are
-  expected to differ -- judging that difference is the entire point.
+Missing data fails. A metric absent from the run, absent from the baseline, or
+a missing baseline file are all failures. The state where a regression is
+invisible must never be the state where the build is green.
+
+Changed ground fails. If the corpus, a prompt or an eval set differs from the
+baseline's, the comparison means nothing, so the gate refuses instead of
+printing a number. Changing them is fine - it needs a deliberate `make freeze`,
+which shows up as a reviewable diff.
+
+Changed configuration does not fail. The config hash and index hash are
+supposed to differ. Judging that difference is the whole point.
 
 ## Engineering decisions and tradeoffs
 
@@ -312,89 +313,81 @@ code:
 
 ## Tooling we deliberately skipped
 
-No DVC. No MLflow. Both would be ceremony here, and the reason is worth stating
-because "we use DVC" is easier to put on a slide than "we thought about it".
+No DVC. No MLflow. Both would be ceremony at this size, and I am writing the
+reasoning down because "we use DVC" is easier to put on a slide than "we
+thought about it and decided not to".
 
-**Data versioning (DVC).** The things that need versioning are the eval sets
-and the corpus pin. The eval sets are small JSONL files -- ${retrieval_slots}
-retrieval slots, ${answer_slots} answer pairs -- that live in git, diff as text
-in review, and are the sort of artifact where a reviewer genuinely wants to see
-the line-level change. The corpus is large and not ours to redistribute, so
-what is versioned is `data/corpus/manifest.json`: one SHA256 per source
-document, which pins the corpus exactly and reproduces it from public URLs. A
-content-addressed blob store in front of that would add a remote to configure
-and a cache to invalidate, in exchange for versioning bytes we deliberately do
-not commit.
+Data versioning. What needs versioning here is the eval sets and the corpus
+pin. The eval sets are small JSONL files (${retrieval_slots} retrieval slots,
+${answer_slots} answer pairs) that live in git, diff as text in review, and are
+exactly the kind of artifact where a reviewer wants to see the line-level
+change. The corpus is large and not mine to redistribute, so what gets
+versioned is `data/corpus/manifest.json`: one SHA256 per source document, which
+pins the corpus exactly and reproduces it from public URLs. Putting a
+content-addressed blob store in front of that buys me a remote to configure and
+a cache to invalidate, in exchange for versioning bytes I deliberately do not
+commit.
 
-**Experiment tracking (MLflow).** Every run writes one immutable parquet under
-`runs/<timestamp>-<confighash>/`, keyed by a fingerprint of the config that
-produced it, alongside the prompt hashes and corpus hash it ran under. Reports
-are generated from those files. That makes the run history queryable with
-pandas, diffable in git, and portable in a tarball, with no server to stand up,
-no schema migration, and no second source of truth to reconcile when the
-tracking server and the artifacts disagree. A tracking server earns its keep
-when many people run many experiments concurrently and need a shared UI. That
-is not this repo.
+Experiment tracking. Every run writes one immutable parquet under
+`runs/<timestamp>-<confighash>/`, keyed by a fingerprint of the config, next to
+the prompt and corpus hashes it ran under. Reports are generated from those
+files. The run history is queryable with pandas, diffable in git and portable
+in a tarball, with no server to stand up, no schema migration, and no second
+source of truth to reconcile when the tracking UI and the artifacts disagree. A
+tracking server earns its keep when a lot of people run a lot of experiments
+concurrently and need somewhere shared to look. That is not this repo, and if
+it becomes this repo the artifacts are easy to import.
 
 Both decisions are recorded with their tradeoffs in `docs/DECISIONS.md`.
 
 ## Limitations
 
-Stated plainly, worst first.
+Worst first.
 
-1. **The judge is not validated.** An LLM judge now runs and scores well
-   against the labels on disk, but those labels are not independent: the same
-   author wrote the answers, the flaw each one carries, and the score it
-   deserves (D-0019). Agreement with them is not evidence about agreement with
-   a person, and a high number there is no more meaningful than a low one.
-   Nothing in this repository currently demonstrates that an LLM judge agrees
-   with a person about CBAM answers. What it demonstrates is a pipeline that
-   would measure exactly that. Fixing it needs independent human labelling --
-   which is now the only remaining blocker, the API key having stopped being
-   one.
-2. **The corpus is synthetic.** Five documents written for this repository in
-   the structural style of the CBAM instruments, marked as such in every file
-   (D-0016). It is smaller, shallower and more regular than the real
-   regulation: shorter sentences, fewer cross-references, no 400-word
-   provisions. Absolute numbers here are optimistic against the real corpus.
-   `make corpus` now fetches the real instruments -- the CBAM regulation, the
-   implementing regulation, both guidance documents and the ETS directive, with
-   only the date-pinned consolidated text still 404ing -- so switching is a
-   matter of re-running the pipeline under `corpus=cbam`, not of network access.
-3. **The measured generator makes no API call.** The committed frontier uses
-   the extractive baseline, so every quality figure is a floor, and the cost
-   axis is a projection rather than spend (D-0028). The relative ordering of
-   retrieval configurations is what the sweep measures and does not depend on
-   what sits downstream, but the absolute quality column would move with a real
-   generator.
-4. **The embeddings are a hash, not a model.** `embedder=hashed` is a signed
-   random projection (D-0005): deterministic, free, and much worse than
-   bge-small. It makes dense retrieval the worst arm in the sweep, which says
-   nothing about dense retrieval. Every dense and hybrid row should be re-run
-   with `embedder=local`.
-5. **The eval sets are small.** ${retrieval_slots} retrieval slots and
-   ${answer_slots} answer pairs against targets of 120 and 150. With n=15 a
-   single item moves recall@k by 6.7 points, so differences smaller than that
-   in the Pareto table are noise. `make gen-eval` drafts candidates and
-   `make label` reviews them; both are implemented and neither has been run
-   against a model.
-6. **Replayed latency is recorded latency.** A run in replay mode reports the
-   latency measured when the cassette was recorded, not the time to read it
-   back (D-0030). That is the honest choice -- the alternative reports disk
-   speed as model latency -- but it means p95 in a replayed run is a historical
-   measurement, and the run record marks it as replayed.
-7. **The rerank arm is unmeasured.** Nine of the 36 sweep cells need the `ml`
-   extra for the cross-encoder and were skipped with the reason recorded. Since
-   reranking is the one place in retrieval where a second model usually earns
-   its cost, that is the most interesting missing row in the table.
-8. **One labeller, no inter-annotator agreement.** The schema records who
-   labelled what and when, so a second labeller is supported, but with one
-   person there is no way to know how much of the judge-human gap is judge
-   error and how much is label noise.
-9. **The container image has never been built.** The `Dockerfile` is written
-   and reviewed but the environment this repo was built in has no Docker
-   daemon, so `make docker` has not run once. Treat it as unverified until it
-   has.
+1. The judge is only partly validated, and unattributably so. Groundedness
+   agrees at 0.800. Relevance and citation correctness sit near 0.35, and with
+   one labeller I cannot tell whether that is the judge being wrong or the
+   rubric being loose. The citation bias runs generous, which is the dangerous
+   direction. A second labeller is the next thing that would move this.
+2. The corpus is synthetic. Five documents I wrote in the structural style of
+   the CBAM instruments, marked as such in every file (D-0016). Shorter
+   sentences, fewer cross-references, no 400-word provisions. The numbers here
+   are optimistic against the real thing. `make corpus` does now fetch the real
+   instruments - the regulation, the implementing regulation, both guidance
+   documents, the ETS directive, with only the date-pinned consolidated text
+   still 404ing - so switching is a matter of re-running under `corpus=cbam`,
+   not of network access. I have not re-run it yet.
+3. The measured generator makes no API call. The committed frontier uses the
+   extractive baseline, so every quality figure is a floor and the cost axis is
+   a projection rather than spend (D-0028). Relative ordering of retrieval
+   configurations is what the sweep measures and does not depend on what sits
+   downstream, but the absolute quality column would move with a real one.
+4. The embeddings are a hash, not a model. `embedder=hashed` is a signed random
+   projection (D-0005): deterministic, free, and much worse than bge-small. It
+   is why dense retrieval is the worst arm, which tells you nothing about dense
+   retrieval. Every dense and hybrid row wants re-running with
+   `embedder=local`.
+5. The eval sets are too small. ${retrieval_slots} retrieval slots and
+   ${answer_slots} answer pairs, against targets of 120 and 150. At n=15 one
+   item moves recall@k by 6.7 points, so anything smaller than that in the
+   Pareto table is noise. `make gen-eval` drafts candidates and `make label`
+   reviews them.
+6. Replayed latency is recorded latency. A replay run reports the latency
+   measured when the cassette was recorded, not the time to read it back
+   (D-0030). That is the honest choice - the alternative reports disk speed as
+   model latency - but p95 in a replayed run is a historical number, and the
+   run record flags it.
+7. The rerank arm is unmeasured. Nine of the 36 cells need the `ml` extra for
+   the cross-encoder and got skipped with the reason recorded. Reranking is the
+   one place in retrieval where a second model usually earns its cost, so this
+   is the most interesting hole in the table.
+8. One labeller, no inter-annotator agreement. The schema records who labelled
+   what and when, so a second person is supported. With one, there is no way to
+   separate judge error from label noise. See limitation 1 - these are the same
+   problem.
+9. The container image has never been built. The Dockerfile is written and
+   reviewed, but I had no Docker daemon, so `make docker` has not run once.
+   Treat it as unverified.
 
 ## Layout
 
