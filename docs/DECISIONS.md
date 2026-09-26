@@ -1171,3 +1171,85 @@ slot whose evidence is absent is a data error, not a hard question.
 Cost: every existing path under `data/eval/` moved one directory down, and a
 corpus with no accepted questions now fails at the start of a run instead of
 producing metrics. That second part is the point.
+
+## D-0051 -- The judge is part of the ground
+
+2026-09-26, post-M6
+
+Two runs are comparable only when they were scored by the same judge
+(`RunMeta.comparable_to`, `Baseline.mismatches`). The Pareto report gives each
+judge's runs a table of their own and draws no frontier across them, and the
+gate refuses a run whose judge fingerprint differs from the baseline's.
+
+Why: the judge is the ruler, not the thing measured. The committed Pareto
+table ranked two runs judged by Qwen at the top of 63 runs judged by rule,
+under a header that said every run was judged by rule. A composite of 0.847
+from one judge and 0.835 from another is not a difference between two
+configurations; it is mostly a difference between two instruments -- the rule
+cannot fault an extractive generator's citations at all, and scores 5.00 on
+that axis in every row. D-0032 said a changed configuration must still be
+judged rather than refused; that stays true for the generator, which is the
+system under test. It was never true for the instrument.
+
+The fingerprint, not just the model name, is compared: the same model with a
+different prompt or reasoning effort is a different instrument. `reasoning_effort`
+now enters the LLM judge's and generator's fingerprints, only when set, so every
+fingerprint recorded before it existed still matches.
+
+Cost: changing the judge now needs a deliberate `make freeze`, and a PR that
+swaps the judge cannot be gated against the old one at all -- which is the
+correct answer, since nothing could say whether the change helped.
+
+## D-0052 -- One judgments file per judge, carrying its own provenance
+
+2026-09-26, post-M6
+
+Judge scores live in `data/eval/<corpus>/judgments/<judge-model>.jsonl` with a
+`.meta.json` beside each, written by `make judge` at the same moment: the
+judge, its prompt, the answers it graded and the retrieval stack it saw
+context from. The calibration report describes every set by its own record and
+builds no stack at all.
+
+Why: every judge wrote the same `judge_scores.jsonl`, and the report described
+it with whatever the current config said. Rendered under the default profile,
+it attributed Qwen's scores to `rule-based-v1` and a bge index to a hashed one,
+and the README repeated the attribution. Worse, the report's own advice when
+it found no judgments -- run the rule-based judge -- would have overwritten the
+only LLM judgments on disk.
+
+Grading a second generator's answers with the same judge now adds to that
+judge's file rather than replacing it, which is what the self-preference probe
+needs and what the old write-the-whole-file behaviour made impossible. Scores
+judged over two different stacks are refused rather than merged.
+
+The Qwen scores predate this, so their sidecar was written after the fact from
+the calibration report committed together with them in 717335c, and it says
+so in a `note` field that the report prints.
+
+Cost: a directory where there was a file, and a sidecar that can in principle
+drift from its scores if edited by hand. `make judge` writes both or neither.
+
+## D-0053 -- A measurement is identified by what it measured, not its config hash
+
+2026-09-26, post-M6
+
+`measurement_key` hashes the chunker, retriever, generator and judge
+fingerprints with the corpus, prompt and eval-set hashes. The report keeps one
+row per key, and `make ablate` skips a cell whose key is already on disk.
+
+Why: the committed sweep measured BM25 under both embedders. BM25 ignores the
+embedder -- its fingerprint does not contain one -- so those nine pairs were
+the same measurement taken twice, identical in every quality column, and the
+table showed eighteen rows for nine configurations. Keying on the config hash
+also had the opposite failure: `find_measured` matched config and corpus only,
+so a sweep resumed after the eval set changed would have reused cells measured
+against the old questions. The embedder still counts wherever it matters,
+because dense and hybrid retrievers carry its fingerprint inside their own.
+
+`tests/test_reports_fresh.py` now does for `reports/` what D-0035 did for the
+README: the committed pareto and calibration reports must equal what the
+artifacts render to. `reports/pareto.md` had sat at 63 configurations while the
+README, rendered from the same runs, said 65.
+
+Cost: `load_eval_sets` runs once more per sweep cell to compute the key; it
+reads two small files.

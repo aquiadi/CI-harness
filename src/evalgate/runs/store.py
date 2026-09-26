@@ -27,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from evalgate.corpus.manifest import utc_now_iso
 from evalgate.errors import EvalgateError
-from evalgate.hashing import short
+from evalgate.hashing import hash_obj, short
 
 META_FILE = "meta.json"
 CONFIG_FILE = "config.yaml"
@@ -62,19 +62,31 @@ class RunMeta(BaseModel):
     fingerprint: dict[str, Any] = Field(default_factory=dict)
     notes: str | None = None
 
+    @property
+    def judge(self) -> dict[str, Any] | None:
+        """The judge's fingerprint: the instrument that produced the quality score."""
+        node = self.fingerprint.get("judge")
+        return node if isinstance(node, dict) else None
+
     def comparable_to(self, other: RunMeta) -> bool:
         """Whether two runs measured the same thing on the same ground.
 
-        The ground is the corpus, the prompts and the eval sets. The index hash
-        is deliberately not part of it: changing the chunker changes the index,
-        and comparing chunkers is the point of the sweep. A footnote saying
-        "these used different prompts" is not a substitute for refusing to put
-        them in one table.
+        The ground is the corpus, the prompts and the eval sets -- and the
+        judge. The judge is the ruler, not the thing measured: a quality score
+        from a rule-based judge and one from an LLM judge are different units,
+        and ranking them in one column put an LLM-judged run at the top of a
+        table whose header said every run was judged by rule.
+
+        The index hash is deliberately not part of it: changing the chunker
+        changes the index, and comparing chunkers is the point of the sweep. A
+        footnote saying "these used different prompts" is not a substitute for
+        refusing to put them in one table.
         """
         return (
             self.corpus_hash == other.corpus_hash
             and self.prompt_hashes == other.prompt_hashes
             and self.evalset_hashes == other.evalset_hashes
+            and self.judge == other.judge
         )
 
 
@@ -141,17 +153,58 @@ def list_runs(runs_root: Path) -> list[Path]:
     return sorted(path for path in runs_root.iterdir() if (path / META_FILE).is_file())
 
 
-def find_measured(runs_root: Path, config_hash: str, corpus_hash: str) -> Path | None:
-    """An existing run of this exact configuration against this exact corpus.
+# The components whose identity decides what a run measured. The embedder is
+# absent on purpose: a retriever that uses one carries its fingerprint inside
+# its own, and one that does not -- BM25 -- is unaffected by it. Keying on the
+# embedder node would treat BM25 under two embedders as two measurements, and
+# the committed sweep did measure it twice, with identical results.
+MEASUREMENT_NODES = ("chunker", "retriever", "generator", "judge")
+
+
+def measurement_key_of(
+    fingerprint: dict[str, Any],
+    corpus_hash: str,
+    prompt_hashes: dict[str, str],
+    evalset_hashes: dict[str, str],
+) -> str:
+    """Identity of a measurement: what was measured, on what ground.
+
+    Two runs with the same key measured the same thing, whatever their config
+    hashes say. The config hash covers every resolved field, including ones a
+    component ignores and fields added to the schema later, so it changes when
+    nothing measured has.
+    """
+    return hash_obj(
+        {
+            "measured": {node: fingerprint.get(node) for node in MEASUREMENT_NODES},
+            "corpus": corpus_hash,
+            "prompts": prompt_hashes,
+            "evalsets": evalset_hashes,
+        }
+    )
+
+
+def measurement_key(meta: RunMeta) -> str:
+    """Identity of what a recorded run measured."""
+    return measurement_key_of(
+        meta.fingerprint, meta.corpus_hash, meta.prompt_hashes, meta.evalset_hashes
+    )
+
+
+def find_measured(runs_root: Path, key: str) -> Path | None:
+    """An existing run that measured exactly this, on exactly this ground.
 
     Exists so that a sweep can decline to re-measure a cell *before* paying for
     it. `write_run` refuses to overwrite, but a run id carries a timestamp, so
     two runs of one configuration never collide on disk and that refusal never
     fires -- the duplicate was always detected after the API calls were spent.
+
+    Keyed on the measurement rather than the config hash: a cell whose eval set
+    changed must be re-measured even though its config did not, and a cell whose
+    config gained an irrelevant field must not be.
     """
     for path in list_runs(runs_root):
-        meta = load_meta(path)
-        if meta.config_hash == config_hash and meta.corpus_hash == corpus_hash:
+        if measurement_key(load_meta(path)) == key:
             return path
     return None
 

@@ -4,6 +4,11 @@ Scores every answer once, and -- when the position-swap probe is enabled --
 a second time with the retrieved context in the opposite order. The two
 scorings are stored side by side under different variants so the report can ask
 whether the judge's opinion survived a change that cannot affect quality.
+
+Each judge writes its own file under `evalsets.judgments_dir`, named after its
+model, together with a record of the stack it judged over. Scoring with the
+rule-based baseline therefore never replaces an LLM judge's scores, and the
+calibration report describes each set by what produced it.
 """
 
 from __future__ import annotations
@@ -12,12 +17,14 @@ from omegaconf import DictConfig
 from rich.console import Console
 
 from evalgate.config import JudgeConfig, ProbesConfig, load_config, resolve_path, typed_node
+from evalgate.errors import EvalgateError
+from evalgate.evalsets.judgments import JudgmentsMeta, load_judgment_set, write_judgments
 from evalgate.evalsets.schemas import AnswerExample, JudgeScore
-from evalgate.evalsets.store import read_jsonl, write_jsonl
+from evalgate.evalsets.store import read_jsonl
 from evalgate.judging.base import JudgeInput
 from evalgate.judging.factory import build_judge
 from evalgate.models.client import build_model_client
-from evalgate.pipeline import build_stack
+from evalgate.pipeline import build_stack, describe_stack
 from evalgate.runs.store import load_run_answers
 
 console = Console()
@@ -98,8 +105,39 @@ def run(overrides: list[str]) -> int:
                 )
             )
 
-    path = resolve_path(cfg, "evalsets.judge_scores_path")
-    write_jsonl(path, scores)
+    directory = resolve_path(cfg, "evalsets.judgments_dir")
+    stack_description = describe_stack(cfg, stack)
+    # The same judge's scores for other generators' answers are kept: the
+    # self-preference probe compares one judge across two generators, and
+    # rewriting the file on every run meant it could never see two.
+    previous = load_judgment_set(directory, judge.model)
+    kept = [item for item in previous.judgments if item.generator != generator] if previous else []
+    previous_stack = previous.meta.stack if previous and previous.meta else None
+    if kept and previous_stack is not None and previous_stack != stack_description:
+        raise EvalgateError(
+            f"{judge.model} has scores for other generators judged over a different "
+            f"stack ({previous_stack}); scores over two stacks cannot share a file "
+            "or be compared by the self-preference probe. Re-judge them under this "
+            "stack, or move the old file aside."
+        )
+    generators = sorted({item.generator for item in kept} | {generator})
+
+    meta = JudgmentsMeta(
+        judge_model=judge.model,
+        judge_provider=settings.provider,
+        judge_prompt=settings.prompt,
+        # From the scores themselves: the rule-based judge reads no prompt, and
+        # its records say so with an empty hash.
+        judge_prompt_hash=scores[0].prompt_hash if scores else "",
+        axes=list(settings.axes),
+        scale_min=settings.scale_min,
+        scale_max=settings.scale_max,
+        answers_from=settings.answers_from,
+        generators=generators,
+        api_mode=str(cfg.api.mode),
+        stack=stack_description,
+    )
+    path = write_judgments(directory, meta, [*kept, *scores])
     primary = [score for score in scores if score.variant == VARIANT_PRIMARY]
     tokens = sum(score.input_tokens + score.output_tokens for score in scores)
     console.print(

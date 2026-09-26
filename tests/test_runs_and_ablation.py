@@ -19,9 +19,17 @@ from evalgate.runs.store import (
     load_metrics,
     load_rows,
     make_run_id,
+    measurement_key,
     resolve_run,
     write_run,
 )
+
+FINGERPRINT: dict[str, object] = {
+    "chunker": {"name": "fixed_token"},
+    "retriever": {"name": "bm25", "k": 3},
+    "generator": {"name": "extractive", "model": "extractive-v1"},
+    "judge": {"name": "heuristic", "model": "rule-based-v1"},
+}
 
 
 def meta(run_id: str = "r-1", **overrides: object) -> RunMeta:
@@ -92,6 +100,28 @@ def test_comparability_requires_matching_upstream_hashes() -> None:
     # The index hash is not part of the ground: changing the chunker changes it,
     # and comparing chunkers is what the sweep is for.
     assert base.comparable_to(meta(index_hash="z" * 64))
+
+
+def test_a_different_judge_is_different_ground() -> None:
+    """A rule's quality score and an LLM's are different units."""
+    rule = meta(fingerprint={"judge": {"name": "heuristic", "model": "rule-based-v1"}})
+    model = meta(fingerprint={"judge": {"name": "api", "model": "qwen/qwen3.8-27b"}})
+    assert not rule.comparable_to(model)
+    assert rule.comparable_to(meta("r-2", fingerprint=dict(rule.fingerprint)))
+
+
+def test_runs_scored_by_another_judge_are_not_ranked_with_the_rest(tmp_path: Path) -> None:
+    rule = {"judge": {"name": "heuristic", "model": "rule-based-v1"}}
+    model = {"judge": {"name": "api", "model": "qwen/qwen3.8-27b"}}
+    comparable, excluded = partition_comparable(
+        [
+            summary("a", fingerprint=rule),
+            summary("b", fingerprint=rule),
+            summary("c", fingerprint=model),
+        ]
+    )
+    assert {item.run_id for item in comparable} == {"a", "b"}
+    assert [item.run_id for item in excluded] == ["c"]
 
 
 def summary(run_id: str, **overrides: object) -> RunSummary:
@@ -265,15 +295,38 @@ def test_re_measuring_a_configuration_shows_one_row(repo_root: Path) -> None:
     assert len({item.meta.config_hash for item in deduplicated}) == len(deduplicated)
 
 
-def test_a_measured_cell_is_found_by_config_and_corpus(tmp_path: Path) -> None:
+def test_a_measured_cell_is_found_by_what_it_measured(tmp_path: Path) -> None:
     """The lookup that lets a sweep skip a cell before paying for it."""
     runs = tmp_path / "runs"
-    write_run(runs, meta("r-1"), rows(), {"composite_quality": 0.5})
+    recorded = meta("r-1", fingerprint=FINGERPRINT)
+    write_run(runs, recorded, rows(), {"composite_quality": 0.5})
 
-    assert find_measured(runs, "c" * 64, "a" * 64) is not None
-    assert find_measured(runs, "c" * 64, "z" * 64) is None, "a new corpus must re-measure"
-    assert find_measured(runs, "z" * 64, "a" * 64) is None, "a new config must re-measure"
-    assert find_measured(tmp_path / "nothing-here", "c" * 64, "a" * 64) is None
+    assert find_measured(runs, measurement_key(recorded)) is not None
+    for changed, why in (
+        (meta(corpus_hash="z" * 64, fingerprint=FINGERPRINT), "a new corpus must re-measure"),
+        (meta(evalset_hashes={"answers": "z" * 64}, fingerprint=FINGERPRINT), "new questions"),
+        (meta(prompt_hashes={"generator": "z" * 64}, fingerprint=FINGERPRINT), "a new prompt"),
+        (meta(fingerprint={**FINGERPRINT, "retriever": {"name": "bm25", "k": 5}}), "new k"),
+    ):
+        assert find_measured(runs, measurement_key(changed)) is None, why
+    assert find_measured(tmp_path / "nothing-here", measurement_key(recorded)) is None
+
+
+def test_a_config_hash_change_that_measures_nothing_new_is_not_re_measured(
+    tmp_path: Path,
+) -> None:
+    """A schema field the components ignore changes the config hash and nothing else."""
+    runs = tmp_path / "runs"
+    write_run(runs, meta("r-1", fingerprint=FINGERPRINT), rows(), {"q": 0.5})
+    renamed = meta("r-2", config_hash="d" * 64, fingerprint=FINGERPRINT)
+    assert find_measured(runs, measurement_key(renamed)) is not None
+
+
+def test_bm25_under_two_embedders_is_one_measurement() -> None:
+    """BM25 ignores the embedder; the committed sweep measured it twice anyway."""
+    hashed = meta("r-1", fingerprint={**FINGERPRINT, "embedder": {"name": "hashed"}})
+    local = meta("r-2", fingerprint={**FINGERPRINT, "embedder": {"name": "local"}})
+    assert measurement_key(hashed) == measurement_key(local)
 
 
 def test_write_run_cannot_detect_a_duplicate_configuration(tmp_path: Path) -> None:
@@ -290,7 +343,7 @@ def test_write_run_cannot_detect_a_duplicate_configuration(tmp_path: Path) -> No
     second = write_run(runs, meta("20270101T000000Z-cccccccccccc"), rows(), {"q": 0.5})
 
     assert first != second, "same config hash, two directories, no refusal"
-    assert find_measured(runs, "c" * 64, "a" * 64) is not None
+    assert find_measured(runs, measurement_key(meta())) is not None
 
 
 def test_a_run_id_carries_a_timestamp_so_two_runs_never_collide() -> None:

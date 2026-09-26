@@ -19,6 +19,7 @@ from pathlib import Path
 from omegaconf import DictConfig
 
 from evalgate.config import JudgeConfig, ProbesConfig, resolve_path, typed_node
+from evalgate.evalsets.judgments import JudgmentSet, load_judgment_sets
 from evalgate.evalsets.schemas import AnswerExample, HumanLabel, JudgeScore
 from evalgate.evalsets.store import read_jsonl
 from evalgate.evaluation.agreement import (
@@ -250,9 +251,12 @@ def _self_preference_section(
         by_generator.setdefault(judgment.generator, []).append(judgment)
     if len(by_generator) < 2:
         return (
-            "Not run: this probe needs answers to the same questions from two "
-            f"generators (config `probes.contrast_generator={probes.contrast_generator}`), "
-            "graded by the same judge. Produce them with `make ablate` and regenerate."
+            "Not run: this probe needs this judge's scores for answers to the same "
+            "questions from two generators, one of them the judge's own model. Measure "
+            "a run with that generator (`probes.contrast_generator` names it), grade "
+            'it with `make judge ARGS="judge.answers_from=run judge.run_id=<run>"`, '
+            "which adds to this judge's scores rather than replacing them, and "
+            "regenerate."
         )
     judge_model = judgments[0].judge_model if judgments else "unknown"
     rows = []
@@ -313,75 +317,140 @@ def _inputs_digest(judgments: Sequence[JudgeScore], labels: Sequence[HumanLabel]
     return short(hash_obj(payload))
 
 
-def build_report(
-    cfg: DictConfig,
-    tokenizer: TokenEstimator,
-    stack_summary: dict[str, str],
-) -> str:
-    """Render the calibration report from the artifacts on disk."""
-    settings = typed_node(cfg, "judge", JudgeConfig)
-    probes = typed_node(cfg, "probes", ProbesConfig)
-    axes = list(settings.axes)
+@dataclass(frozen=True, slots=True)
+class Scale:
+    """The axes and range a judgment set was scored on."""
 
-    judgments = read_jsonl(resolve_path(cfg, "evalsets.judge_scores_path"), JudgeScore)
-    answers = read_jsonl(resolve_path(cfg, "evalsets.answers_path"), AnswerExample)
-    labels = read_jsonl(resolve_path(cfg, "evalsets.human_labels_path"), HumanLabel)
-    seed_labels = read_jsonl(resolve_path(cfg, "evalsets.seed_labels_path"), HumanLabel)
-    label_sets = partition_labels([*labels, *seed_labels])
+    axes: list[str]
+    scale_min: int
+    scale_max: int
 
+
+def scale_of(judgment_set: JudgmentSet, fallback: JudgeConfig) -> Scale:
+    """The set's own axes and scale, or the configured ones when unrecorded."""
+    if judgment_set.meta is not None:
+        meta = judgment_set.meta
+        return Scale(list(meta.axes), meta.scale_min, meta.scale_max)
+    return Scale(list(fallback.axes), fallback.scale_min, fallback.scale_max)
+
+
+def agreement_rows(
+    label_set: LabelSet, judgment_set: JudgmentSet, scale: Scale
+) -> tuple[list[AxisAgreement], list[Disagreement]]:
+    """Per-axis agreement between one judge and one label source."""
+    rows: list[AxisAgreement] = []
+    every_disagreement: list[Disagreement] = []
+    for axis in scale.axes:
+        human_scores, judge_scores, disagreements = _pair_scores(
+            label_set, judgment_set.judgments, axis
+        )
+        rows.append(
+            axis_agreement(axis, human_scores, judge_scores, scale.scale_min, scale.scale_max)
+        )
+        every_disagreement.extend(disagreements)
+    return rows, every_disagreement
+
+
+def _provenance(judgment_set: JudgmentSet, scale: Scale, labels: Sequence[HumanLabel]) -> list[str]:
+    """What produced this judge's scores, from their own records only.
+
+    Never from the configuration the report is rendered under: that describes
+    what would run next, not what ran, and rendering under the default profile
+    once attributed an LLM judge's scores to the rule-based judge.
+    """
+    judgments = judgment_set.judgments
+    meta = judgment_set.meta
     n_primary = len([item for item in judgments if item.variant == VARIANT_PRIMARY])
     n_swapped = len([item for item in judgments if item.variant == VARIANT_SWAPPED])
-    provenance = [
-        f"judge: `{settings.model}` (provider `{settings.provider}`)",
-        f"judge prompt: `{settings.prompt}` ({_prompt_hash_label(judgments)})",
-        f"scale: {settings.scale_min}-{settings.scale_max}",
-        f"axes: {', '.join(axes)}",
-        *[f"{key}: {value}" for key, value in sorted(stack_summary.items())],
-        f"judgments: {n_primary} primary, {n_swapped} swapped-context",
-        f"answers graded from: `{settings.answers_from}`",
-        f"inputs digest: {_inputs_digest(judgments, [*labels, *seed_labels])}",
+    lines = [
+        f"judge: `{judgment_set.judge_model}`"
+        + (f" (provider `{meta.judge_provider}`)" if meta else " (provider not recorded)"),
+        f"judge prompt: `{meta.judge_prompt}` ({_prompt_hash_label(judgments)})"
+        if meta
+        else f"judge prompt: {_prompt_hash_label(judgments)}",
+        f"scale: {scale.scale_min}-{scale.scale_max}",
+        f"axes: {', '.join(scale.axes)}",
     ]
-    parts: list[str] = [heading(TITLE, 1), bullets(provenance)]
+    if meta is None:
+        lines.append("retrieval stack: not recorded (these scores predate provenance records)")
+    else:
+        lines.append(f"api mode: {meta.api_mode}")
+        lines.extend(f"{key}: {value}" for key, value in sorted(meta.stack.items()))
+    lines.append(f"judgments: {n_primary} primary, {n_swapped} swapped-context")
+    if meta is not None:
+        lines.append("answers graded from: " + ", ".join(f"`{name}`" for name in meta.generators))
+        if meta.note:
+            lines.append(f"provenance: {meta.note}")
+    lines.append(f"inputs digest: {_inputs_digest(judgments, labels)}")
+    return lines
 
-    if not judgments:
-        parts.append(
-            "\nNo judgments on disk. Run `make judge` (add `judge=heuristic` to run the "
-            "rule-based baseline with no credentials) and regenerate."
+
+def _comparison(sets: Sequence[JudgmentSet], label_set: LabelSet, fallback: JudgeConfig) -> str:
+    """Kappa per axis for every judge against one label source."""
+    axes: list[str] = []
+    for judgment_set in sets:
+        for axis in scale_of(judgment_set, fallback).axes:
+            if axis not in axes:
+                axes.append(axis)
+    rows = []
+    for judgment_set in sets:
+        scale = scale_of(judgment_set, fallback)
+        agreement, _ = agreement_rows(label_set, judgment_set, scale)
+        by_axis = {row.axis: row for row in agreement}
+        stack = judgment_set.meta.stack if judgment_set.meta else {}
+        rows.append(
+            [
+                f"`{judgment_set.judge_model}`",
+                stack.get("retriever", "not recorded"),
+                stack.get("embedder", "not recorded"),
+                max((row.n for row in agreement), default=0),
+                *[
+                    number(by_axis[axis].kappa)
+                    if axis in by_axis and by_axis[axis].is_defined
+                    else "undefined"
+                    for axis in axes
+                ],
+            ]
         )
-        return "\n\n".join(parts) + "\n"
+    note = (
+        "Each judge scored the answers against context from its own retrieval stack. "
+        "Where the stacks differ, so did what the judges were shown, and the gap between "
+        "two rows is not only a difference between judges."
+    )
+    headers = ["judge", "retriever", "embedder", "n", *[f"kappa {axis}" for axis in axes]]
+    return f"{table(headers, rows)}\n\n{note}"
 
-    if not label_sets:
-        parts.append("\nNo labels on disk. Run `make label`, then regenerate this report.")
-        return "\n\n".join(parts) + "\n"
 
-    if len(label_sets) > 1:
-        parts.append(MIXED_LABELS_NOTE)
-
+def _judge_section(
+    cfg: DictConfig,
+    judgment_set: JudgmentSet,
+    label_sets: Sequence[LabelSet],
+    labels: Sequence[HumanLabel],
+    answers: Sequence[AnswerExample],
+    tokenizer: TokenEstimator,
+    fallback: JudgeConfig,
+    probes: ProbesConfig,
+) -> str:
+    scale = scale_of(judgment_set, fallback)
+    parts: list[str] = [
+        heading(f"Judge: `{judgment_set.judge_model}`", 2),
+        bullets(_provenance(judgment_set, scale, labels)),
+    ]
     for label_set in label_sets:
-        parts.append(heading(f"Agreement with {label_set.name} labels", 2))
+        parts.append(heading(f"Agreement with {label_set.name} labels", 3))
         if not label_set.independent:
             parts.append(INDEPENDENCE_WARNING)
 
-        rows: list[AxisAgreement] = []
-        every_disagreement: list[Disagreement] = []
-        for axis in axes:
-            human_scores, judge_scores, disagreements = _pair_scores(label_set, judgments, axis)
-            rows.append(
-                axis_agreement(
-                    axis, human_scores, judge_scores, settings.scale_min, settings.scale_max
-                )
-            )
-            every_disagreement.extend(disagreements)
-
+        rows, every_disagreement = agreement_rows(label_set, judgment_set, scale)
         parts.append(_agreement_table(rows))
         parts.append(
             "`mean signed error` is judge minus human: positive means the judge is more "
             "generous than the labeller."
         )
         for row in rows:
-            parts.append(_confusion_section(row, settings.scale_min, settings.scale_max))
+            parts.append(_confusion_section(row, scale.scale_min, scale.scale_max))
 
-        parts.append(heading(f"Worst disagreements ({label_set.name})", 3))
+        parts.append(heading(f"Worst disagreements ({label_set.name})", 4))
         worst = worst_disagreements(every_disagreement, probes.worst_disagreements)
         if not worst:
             parts.append("None: the judge matched every label exactly.")
@@ -410,7 +479,70 @@ def build_report(
                 )
             )
 
-    parts.append(_probe_section(cfg, judgments, answers, tokenizer, axes, probes))
+    parts.append(
+        _probe_section(cfg, judgment_set.judgments, answers, tokenizer, scale.axes, probes)
+    )
+    return "\n\n".join(parts)
+
+
+def build_report(cfg: DictConfig, tokenizer: TokenEstimator) -> str:
+    """Render the calibration report from the artifacts on disk."""
+    fallback = typed_node(cfg, "judge", JudgeConfig)
+    probes = typed_node(cfg, "probes", ProbesConfig)
+
+    sets = load_judgment_sets(resolve_path(cfg, "evalsets.judgments_dir"))
+    answers = read_jsonl(resolve_path(cfg, "evalsets.answers_path"), AnswerExample)
+    labels = read_jsonl(resolve_path(cfg, "evalsets.human_labels_path"), HumanLabel)
+    seed_labels = read_jsonl(resolve_path(cfg, "evalsets.seed_labels_path"), HumanLabel)
+    every_label = [*labels, *seed_labels]
+    label_sets = partition_labels(every_label)
+
+    parts: list[str] = [heading(TITLE, 1)]
+    parts.append(
+        bullets(
+            [
+                f"corpus: {cfg.corpus.name}",
+                "judges on disk: "
+                + (", ".join(f"`{item.judge_model}`" for item in sets) if sets else "none"),
+                "label sources: "
+                + (", ".join(item.name for item in label_sets) if label_sets else "none"),
+            ]
+        )
+    )
+
+    if not sets:
+        parts.append(
+            "No judgments on disk. Run `make judge` (add `ARGS=judge=heuristic` to run the "
+            "rule-based baseline with no credentials) and regenerate. Each judge writes its "
+            "own file, so running one never replaces another's scores."
+        )
+        return "\n\n".join(parts) + "\n"
+
+    if not label_sets:
+        parts.append("No labels on disk. Run `make label`, then regenerate this report.")
+        return "\n\n".join(parts) + "\n"
+
+    if len(label_sets) > 1:
+        parts.append(MIXED_LABELS_NOTE)
+
+    if len(sets) > 1:
+        reference = label_sets[0]
+        parts.append(heading(f"Judges compared against {reference.name} labels", 2))
+        parts.append(_comparison(sets, reference, fallback))
+
+    for judgment_set in sets:
+        parts.append(
+            _judge_section(
+                cfg,
+                judgment_set,
+                label_sets,
+                every_label,
+                answers,
+                tokenizer,
+                fallback,
+                probes,
+            )
+        )
     return "\n\n".join(parts) + "\n"
 
 

@@ -182,8 +182,9 @@ command for anyone with a key.
 ## Judge calibration findings
 
 Full report: [`reports/judge_calibration.md`](reports/judge_calibration.md).
-Agreement between the configured judge (`${judge_model}`) and the only labels
-currently on disk (`${label_source}`, ${label_pairs} paired items):
+Agreement between the judge whose scores are on disk (`${calibration_judge}`)
+and the only labels currently on disk (`${label_source}`, ${label_pairs} paired
+items):
 
 ${calibration_table}
 

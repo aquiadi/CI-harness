@@ -35,6 +35,7 @@ from evalgate.config import (
     resolve_path,
     typed_node,
 )
+from evalgate.corpus.loading import LoadedCorpus
 from evalgate.corpus.manifest import utc_now_iso
 from evalgate.evalsets.binding import check_bound
 from evalgate.evalsets.schemas import AnswerExample, JudgeScore, RetrievalExample, ReviewStatus
@@ -228,6 +229,53 @@ def _aggregate(
     return metrics
 
 
+@dataclass(frozen=True, slots=True)
+class EvalSets:
+    """The examples a run scores, already bound to its corpus."""
+
+    retrieval: list[RetrievalExample]
+    answers: list[AnswerExample]
+
+    @property
+    def hashes(self) -> dict[str, str]:
+        """Content hashes, recorded in the run so a changed question is visible."""
+        return {
+            "retrieval": hash_obj([example.model_dump(mode="json") for example in self.retrieval]),
+            "answers": hash_obj([example.model_dump(mode="json") for example in self.answers]),
+        }
+
+
+def load_eval_sets(cfg: DictConfig, corpus: LoadedCorpus) -> EvalSets:
+    """Read the accepted examples and refuse any the corpus cannot answer."""
+    retrieval_path = resolve_path(cfg, "evalsets.retrieval_path")
+    answers_path = resolve_path(cfg, "evalsets.answers_path")
+    retrieval_examples = [
+        example
+        for example in read_jsonl(retrieval_path, RetrievalExample)
+        if example.status is ReviewStatus.ACCEPTED
+    ]
+    answer_examples = read_jsonl(answers_path, AnswerExample)
+    limit = cfg.evalsets.get("limit")
+    if limit:
+        retrieval_examples = retrieval_examples[: int(limit)]
+        answer_examples = answer_examples[: int(limit)]
+    check_bound(corpus, retrieval_examples, answer_examples, retrieval_path, answers_path)
+    return EvalSets(retrieval=retrieval_examples, answers=answer_examples)
+
+
+def measured_fingerprint(
+    stack: RetrievalStack, generator: Generator, judge: Judge | None
+) -> dict[str, Any]:
+    """The identity of every component a run measures."""
+    return {
+        "chunker": stack.chunker.fingerprint(),
+        "embedder": stack.embedder.fingerprint(),
+        "retriever": stack.retriever.fingerprint(),
+        "generator": generator.fingerprint(),
+        "judge": judge.fingerprint() if judge else None,
+    }
+
+
 def evaluate(
     cfg: DictConfig,
     stack: RetrievalStack,
@@ -242,32 +290,15 @@ def evaluate(
     pricing = typed_node(cfg, "pricing", PricingConfig)
     k = int(cfg.retriever.k)
 
-    retrieval_path = resolve_path(cfg, "evalsets.retrieval_path")
-    answers_path = resolve_path(cfg, "evalsets.answers_path")
-    retrieval_examples = [
-        example
-        for example in read_jsonl(retrieval_path, RetrievalExample)
-        if example.status is ReviewStatus.ACCEPTED
-    ]
-    answer_examples = read_jsonl(answers_path, AnswerExample)
-    limit = cfg.evalsets.get("limit")
-    if limit:
-        retrieval_examples = retrieval_examples[: int(limit)]
-        answer_examples = answer_examples[: int(limit)]
-    check_bound(stack.corpus, retrieval_examples, answer_examples, retrieval_path, answers_path)
-
+    eval_sets = load_eval_sets(cfg, stack.corpus)
     rows = pd.DataFrame(
-        _retrieval_rows(stack, retrieval_examples, k)
+        _retrieval_rows(stack, eval_sets.retrieval, k)
         + _answer_rows(
-            stack, generator, judge, answer_examples, k, generator_cfg, judge_cfg, pricing
+            stack, generator, judge, eval_sets.answers, k, generator_cfg, judge_cfg, pricing
         )
     )
     metrics = _aggregate(rows, gate, judge_cfg, k)
 
-    evalset_hashes = {
-        "retrieval": hash_obj([example.model_dump(mode="json") for example in retrieval_examples]),
-        "answers": hash_obj([example.model_dump(mode="json") for example in answer_examples]),
-    }
     digest = config_hash(cfg)
     meta = RunMeta(
         run_id=make_run_id(digest),
@@ -277,15 +308,9 @@ def evaluate(
         corpus_hash=stack.corpus.corpus_hash,
         index_hash=stack.index.meta.index_hash,
         prompt_hashes={name: prompt.sha256 for name, prompt in prompts.items()},
-        evalset_hashes=evalset_hashes,
+        evalset_hashes=eval_sets.hashes,
         api_mode=str(cfg.api.mode),
         replayed=bool(rows.get("replayed", pd.Series(dtype=bool)).any()),
-        fingerprint={
-            "chunker": stack.chunker.fingerprint(),
-            "embedder": stack.embedder.fingerprint(),
-            "retriever": stack.retriever.fingerprint(),
-            "generator": generator.fingerprint(),
-            "judge": judge.fingerprint() if judge else None,
-        },
+        fingerprint=measured_fingerprint(stack, generator, judge),
     )
     return RunOutcome(meta=meta, rows=rows, metrics=metrics)

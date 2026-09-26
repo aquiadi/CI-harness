@@ -21,20 +21,19 @@ from rich.console import Console
 
 from evalgate.config import (
     AblationConfig,
-    config_hash,
     load_config,
     resolve_path,
     typed_node,
 )
 from evalgate.embeddings.local import BackendUnavailableError
-from evalgate.evaluation.runner import evaluate
+from evalgate.evaluation.runner import evaluate, load_eval_sets, measured_fingerprint
 from evalgate.generation.factory import build_generator
 from evalgate.judging.factory import build_judge
 from evalgate.models.base import ModelError
 from evalgate.models.client import build_model_client
 from evalgate.pipeline import build_stack
 from evalgate.prompts import load_prompt
-from evalgate.runs.store import RunExistsError, find_measured, write_run
+from evalgate.runs.store import RunExistsError, find_measured, measurement_key_of, write_run
 
 console = Console()
 
@@ -104,12 +103,23 @@ def run(overrides: list[str]) -> int:
             console.print(f"[yellow]{index}/{len(cells)} {cell}: skipped, {exc}[/yellow]")
             continue
 
+        generator = build_generator(cfg, stack.tokenizer, client)
+        judge = build_judge(cfg, client)
+
         # Before evaluating, not after: evaluate() is where the judge calls are
         # made, and re-measuring a cell already on disk spends real quota to
         # produce a result that is then discarded as a duplicate. This is what
         # makes a sweep resumable across days when a daily token limit stops it
-        # partway.
-        measured = find_measured(runs_dir, config_hash(cfg), stack.corpus.corpus_hash)
+        # partway. Keyed on what is measured, not the config hash: BM25 under a
+        # second embedder is the same measurement and is not repeated, and a
+        # changed eval set is a new one and is.
+        key = measurement_key_of(
+            measured_fingerprint(stack, generator, judge),
+            stack.corpus.corpus_hash,
+            {name: prompt.sha256 for name, prompt in prompts.items()},
+            load_eval_sets(cfg, stack.corpus).hashes,
+        )
+        measured = find_measured(runs_dir, key)
         if measured is not None:
             reused += 1
             console.print(
@@ -118,13 +128,7 @@ def run(overrides: list[str]) -> int:
             continue
 
         try:
-            outcome = evaluate(
-                cfg,
-                stack,
-                build_generator(cfg, stack.tokenizer, client),
-                build_judge(cfg, client),
-                prompts,
-            )
+            outcome = evaluate(cfg, stack, generator, judge, prompts)
         except BackendUnavailableError as exc:
             # An optional dependency is missing (the reranker needs `make ml`).
             # Recording the cell as unmeasured and continuing beats dying at

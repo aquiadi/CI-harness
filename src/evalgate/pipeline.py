@@ -19,6 +19,7 @@ from evalgate.config import SparseConfig, resolve_path, typed_node
 from evalgate.corpus.loading import LoadedCorpus, load_corpus
 from evalgate.embeddings.base import Embedder
 from evalgate.factory import construct
+from evalgate.hashing import short
 from evalgate.ingest.tokens import TokenEstimator
 from evalgate.retrieval.base import Retriever
 from evalgate.retrieval.hybrid import Reranker
@@ -153,6 +154,17 @@ def stack_fingerprint(stack: RetrievalStack) -> dict[str, object]:
         "embedder": stack.embedder.fingerprint(),
         "retriever": stack.retriever.fingerprint(),
         "index": {"hash": stack.index.meta.index_hash, "n_chunks": stack.index.meta.n_chunks},
+    }
+
+
+def describe_stack(cfg: DictConfig, stack: RetrievalStack) -> dict[str, str]:
+    """The stack in words, for provenance lines a person reads."""
+    return {
+        "corpus": f"{stack.corpus.name} ({short(stack.corpus.corpus_hash)})",
+        "chunker": str(cfg.chunker.name),
+        "embedder": f"{cfg.embedder.name} / {cfg.embedder.model}",
+        "retriever": f"{cfg.retriever.name} (k={cfg.retriever.k})",
+        "index": short(stack.index.meta.index_hash),
     }
 
 

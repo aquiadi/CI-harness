@@ -1,5 +1,13 @@
 # Judge calibration
 
+- corpus: cbam_synthetic
+- judges on disk: `qwen/qwen3.8-27b`
+- label sources: aditya, seed-author
+
+Labels come from more than one source. Independent human labels and `seed-author` ratings are reported separately; they are never pooled.
+
+## Judge: `qwen/qwen3.8-27b`
+
 - judge: `qwen/qwen3.8-27b` (provider `api`)
 - judge prompt: `judge/rubric_v1.md` (035548ced080)
 - scale: 1-5
@@ -12,11 +20,10 @@
 - retriever: hybrid (k=10)
 - judgments: 15 primary, 15 swapped-context
 - answers graded from: `reference`
+- provenance: Written after the fact. These scores predate provenance records; the stack recorded here is the one reports/judge_calibration.md named when it was committed together with these scores in 717335c, under +experiment=groq.
 - inputs digest: 23bbfb962fb0
 
-Labels come from more than one source. Independent human labels and `seed-author` ratings are reported separately; they are never pooled.
-
-## Agreement with aditya labels
+### Agreement with aditya labels
 
 | axis | n | kappa | quadratic kappa | exact | within 1 | mean human | mean judge | mean signed error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -56,7 +63,7 @@ Labels come from more than one source. Independent human labels and `seed-author
 | 4 | 0 | 0 | 0 | 0 | 0 |
 | 5 | 1 | 0 | 0 | 0 | 9 |
 
-### Worst disagreements (aditya)
+#### Worst disagreements (aditya)
 
 | example | axis | human | judge | gap | judge rationale | answer |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -71,7 +78,7 @@ Labels come from more than one source. Independent human labels and `seed-author
 | seed-a-013 | relevance | 2 | 1 | 1 | Registration opened in 2023 and is free | Operators should register on the CBAM transitional registry and obtain an operator identification number, which importers then quote in their quarterly reports… |
 | seed-a-015 | relevance | 4 | 3 | 1 | no longer satisfies the criteria set out in Article 9 | Status is revoked where the holder no longer meets the authorisation criteria [syn_reg_main#0007]. |
 
-## Agreement with seed-author labels
+### Agreement with seed-author labels
 
 **These are not independent human labels.** The only labels available are `seed-author` ratings, authored alongside the answers they rate (see docs/DECISIONS.md D-0019). Agreement measured against them says almost nothing about whether the judge agrees with a person: the same author decided both what the answer would get wrong and what score that deserved. They exist so this pipeline is runnable and testable before anyone has labelled. Run `make label` and regenerate to get a number that means something.
 
@@ -113,7 +120,7 @@ Labels come from more than one source. Independent human labels and `seed-author
 | 4 | 0 | 0 | 0 | 0 | 0 |
 | 5 | 0 | 0 | 0 | 0 | 10 |
 
-### Worst disagreements (seed-author)
+#### Worst disagreements (seed-author)
 
 | example | axis | human | judge | gap | judge rationale | answer |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -146,4 +153,4 @@ A strong positive correlation is the failure mode that rewards padding. It is ev
 
 #### Self-preference: does the judge favour its own model family?
 
-Not run: this probe needs answers to the same questions from two generators (config `probes.contrast_generator=groq_contrast`), graded by the same judge. Produce them with `make ablate` and regenerate.
+Not run: this probe needs this judge's scores for answers to the same questions from two generators, one of them the judge's own model. Measure a run with that generator (`probes.contrast_generator` names it), grade it with `make judge ARGS="judge.answers_from=run judge.run_id=<run>"`, which adds to this judge's scores rather than replacing them, and regenerate.

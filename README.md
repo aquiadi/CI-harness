@@ -3,7 +3,7 @@
 A RAG system over EU CBAM regulatory documents. The RAG part is deliberately
 boring. What I actually built is the harness around it: an LLM judge whose
 agreement with human labels is measured rather than assumed, a
-65-configuration retrieval sweep on a cost/latency/quality frontier,
+54-configuration retrieval sweep on a cost/latency/quality frontier,
 and a CI gate that fails a pull request when quality drops.
 
 The frozen baseline scores 0.828 composite quality at 11.4 ms p95,
@@ -182,8 +182,9 @@ command for anyone with a key.
 ## Judge calibration findings
 
 Full report: [`reports/judge_calibration.md`](reports/judge_calibration.md).
-Agreement between the configured judge (`rule-based-v1`) and the only labels
-currently on disk (`aditya`, 15 paired items):
+Agreement between the judge whose scores are on disk (`qwen/qwen3.8-27b`)
+and the only labels currently on disk (`aditya`, 15 paired
+items):
 
 | axis | n | kappa | quadratic kappa | exact agreement | mean human | mean judge |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -233,21 +234,21 @@ and has not run.
 ## The ablation frontier
 
 Full report with both frontier figures:
-[`reports/pareto.md`](reports/pareto.md). 65 configurations measured
+[`reports/pareto.md`](reports/pareto.md). 54 configurations measured
 over {chunker} x {retriever} x {k}; the nine cross-encoder rerank cells need
 the `ml` extra and are listed in the report as unmeasured. `*` marks a
 configuration on at least one frontier.
 
 |  | config | quality | recall@k | nDCG@10 | p95 ms | projected $/q |
 | --- | --- | --- | --- | --- | --- | --- |
-| * | fixed/dense/k=3/local/openai/gpt-oss-20b | 0.847 | 0.533 | 0.509 | 1603.1 | 0.007142 |
 | * | recursive/hybrid/k=10/local | 0.835 | 0.867 | 0.548 | 23.1 | 0.009963 |
 |  | fixed/hybrid_rerank/k=10 | 0.832 | 0.933 | 0.570 | 4731.7 | 0.010201 |
-|  | section/dense/k=10/local | 0.832 | 0.933 | 0.692 | 24.0 | 0.007482 |
+| * | section/dense/k=10/local | 0.832 | 0.933 | 0.692 | 24.0 | 0.007482 |
 |  | section/hybrid/k=10/local | 0.830 | 0.933 | 0.635 | 104.9 | 0.007672 |
 | * | fixed/hybrid/k=10/hashed | 0.828 | 0.867 | 0.437 | 11.4 | 0.010471 |
 | * | section/hybrid_rerank/k=5 | 0.825 | 0.933 | 0.735 | 6617.6 | 0.005137 |
 |  | section/hybrid_rerank/k=10 | 0.825 | 0.933 | 0.735 | 13964.4 | 0.007965 |
+| * | section/dense/k=5/local | 0.822 | 0.933 | 0.692 | 62.0 | 0.004601 |
 
 What the sweep says on this corpus:
 

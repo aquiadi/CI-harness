@@ -1,0 +1,26 @@
+{
+  "answers_from": "reference",
+  "api_mode": "live",
+  "axes": [
+    "groundedness",
+    "relevance",
+    "citation_correctness"
+  ],
+  "generators": [
+    "reference"
+  ],
+  "judge_model": "qwen/qwen3.8-27b",
+  "judge_prompt": "judge/rubric_v1.md",
+  "judge_prompt_hash": "035548ced080f92991f0ed2fe8912ede87c0f81e5ec0d6b61ba1b9bc88c984eb",
+  "judge_provider": "api",
+  "note": "Written after the fact. These scores predate provenance records; the stack recorded here is the one reports/judge_calibration.md named when it was committed together with these scores in 717335c, under +experiment=groq.",
+  "scale_max": 5,
+  "scale_min": 1,
+  "stack": {
+    "chunker": "recursive_structural",
+    "corpus": "cbam_synthetic (83d3414da810)",
+    "embedder": "local / BAAI/bge-small-en-v1.5",
+    "index": "4e406a172dfd",
+    "retriever": "hybrid (k=10)"
+  }
+}

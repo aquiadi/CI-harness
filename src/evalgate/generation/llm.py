@@ -54,10 +54,15 @@ class LLMGenerator:
 
     def fingerprint(self) -> dict[str, Any]:
         """Identity of this generator and its parameters."""
-        return {
+        identity: dict[str, Any] = {
             "name": self.name,
             "model": self.model,
             "prompt_hash": self.prompt.sha256,
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
         }
+        # Only when set, so fingerprints recorded before the field existed
+        # still match.
+        if self.reasoning_effort is not None:
+            identity["reasoning_effort"] = self.reasoning_effort
+        return identity

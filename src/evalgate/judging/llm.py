@@ -89,7 +89,7 @@ class LLMJudge:
 
     def fingerprint(self) -> dict[str, Any]:
         """Identity of this judge and its parameters."""
-        return {
+        identity: dict[str, Any] = {
             "name": self.name,
             "model": self.model,
             "prompt_hash": self.prompt.sha256,
@@ -97,6 +97,11 @@ class LLMJudge:
             "scale": [self.scale_min, self.scale_max],
             "temperature": self.temperature,
         }
+        # Only when set, so every fingerprint recorded before the field existed
+        # still matches; when set it changes the verdicts, so it is identity.
+        if self.reasoning_effort is not None:
+            identity["reasoning_effort"] = self.reasoning_effort
+        return identity
 
 
 def _answer_hash(answer: str) -> str:

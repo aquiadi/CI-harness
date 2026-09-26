@@ -20,10 +20,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evalgate.hashing import short
+from evalgate.hashing import hash_obj, short
 from evalgate.reporting.markdown import bullets, heading, number, table
 from evalgate.reporting.plots import Point, frontier, render
-from evalgate.runs.store import RunMeta, list_runs, load_meta, load_metrics
+from evalgate.runs.store import RunMeta, list_runs, load_meta, load_metrics, measurement_key
 
 TITLE = "Retrieval ablations and the cost/latency/quality frontier"
 FIGURES_DIR = "figures"
@@ -153,17 +153,41 @@ def load_summaries(runs_root: Path) -> list[RunSummary]:
 
 
 def latest_per_config(summaries: Sequence[RunSummary]) -> list[RunSummary]:
-    """One row per configuration: the most recent measurement of each.
+    """One row per measurement: the most recent run of each.
 
     Re-measuring a configuration is normal -- freezing a baseline does it, and
     so does re-running a cell after a change. The runs are all kept on disk,
-    but the table shows the current measurement of each configuration rather
-    than the same cell twice.
+    but the table shows the current measurement of each rather than the same
+    cell twice.
+
+    "The same cell" is decided by what was measured (`measurement_key`), not by
+    the config hash. The committed sweep ran BM25 under both embedders; BM25
+    ignores the embedder, so those were one measurement taken twice with
+    identical results, and they appeared as two rows.
     """
     newest: dict[str, RunSummary] = {}
     for summary in sorted(summaries, key=lambda item: item.run_id):
-        newest[summary.meta.config_hash] = summary
+        newest[measurement_key(summary.meta)] = summary
     return sorted(newest.values(), key=lambda item: item.run_id)
+
+
+def comparable_groups(summaries: Sequence[RunSummary]) -> list[list[RunSummary]]:
+    """Runs grouped by the ground they stand on, largest group first.
+
+    Runs are comparable only when corpus, prompts, eval sets and judge match
+    (`RunMeta.comparable_to`). Ties are broken by the earliest run id so the
+    order, and therefore the report, is stable.
+    """
+    groups: dict[tuple[str, str, str, str], list[RunSummary]] = {}
+    for summary in summaries:
+        key = (
+            summary.meta.corpus_hash,
+            _hash_of(summary.meta.prompt_hashes),
+            _hash_of(summary.meta.evalset_hashes),
+            _hash_of(summary.meta.judge or {}),
+        )
+        groups.setdefault(key, []).append(summary)
+    return sorted(groups.values(), key=lambda group: (-len(group), group[0].run_id))
 
 
 def partition_comparable(
@@ -171,29 +195,19 @@ def partition_comparable(
 ) -> tuple[list[RunSummary], list[RunSummary]]:
     """Split runs into the largest comparable group and everything else.
 
-    Runs are comparable only when corpus, prompts, index inputs and eval sets
-    match. Rather than footnote a mixed table, the report tabulates the largest
-    comparable group and lists the rest as excluded, with what differs.
+    Rather than footnote a mixed table, the report tabulates the largest
+    comparable group in full and gives every other group a table of its own.
     """
-    groups: dict[tuple[str, str, str], list[RunSummary]] = {}
-    for summary in summaries:
-        key = (
-            summary.meta.corpus_hash,
-            _hash_of(summary.meta.prompt_hashes),
-            _hash_of(summary.meta.evalset_hashes),
-        )
-        groups.setdefault(key, []).append(summary)
+    groups = comparable_groups(summaries)
     if not groups:
         return [], []
-    largest = max(groups.values(), key=len)
+    largest = groups[0]
     excluded = [summary for summary in summaries if summary not in largest]
     return largest, excluded
 
 
-def _hash_of(mapping: dict[str, str]) -> str:
-    from evalgate.hashing import hash_obj
-
-    return hash_obj(mapping)
+def _hash_of(mapping: Mapping[str, Any]) -> str:
+    return hash_obj(dict(mapping))
 
 
 def _results_table(
@@ -252,16 +266,18 @@ def build_report(
         return "\n\n".join(parts) + "\n"
 
     reference = summaries[0].meta
+    replayed = any(summary.meta.replayed for summary in summaries)
     parts.append(
         bullets(
             [
                 f"configurations measured: {len(summaries)}",
                 f"corpus: {reference.corpus_name} ({short(reference.corpus_hash)})",
-                f"generator: {_fingerprint_name(reference, 'generator')}",
                 f"judge: {_fingerprint_name(reference, 'judge')}",
-                f"embedder: {_fingerprint_name(reference, 'embedder')}",
-                f"api mode: {reference.api_mode}"
-                + (" (latencies are those measured when recorded)" if reference.replayed else ""),
+                f"generator: {_distinct(summaries, 'generator')}",
+                f"embedder: {_distinct(summaries, 'embedder')}",
+                "api mode: "
+                + ", ".join(sorted({summary.meta.api_mode for summary in summaries}))
+                + (" (replayed latencies are those measured when recorded)" if replayed else ""),
                 "quality: composite of the judge axes and recall@k, weighted by `configs/gate/`",
             ]
         )
@@ -338,26 +354,72 @@ def build_report(
     )
 
     if excluded:
-        parts.append(heading("Excluded from the table", 3))
-        parts.append(
-            "These runs are not comparable to the group above -- a different corpus, "
-            "prompt or eval set -- so they are listed rather than mixed in."
-        )
+        parts.append(_other_groups(reference, excluded))
+    return "\n\n".join(parts) + "\n"
+
+
+def _differences(reference: RunMeta, other: RunMeta) -> list[str]:
+    """What separates a group from the main table, in words."""
+    differences: list[str] = []
+    if other.judge != reference.judge:
+        differences.append(f"judge `{_fingerprint_name(other, 'judge')}`")
+    if other.corpus_hash != reference.corpus_hash:
+        differences.append(f"corpus {other.corpus_name} ({short(other.corpus_hash)})")
+    if other.prompt_hashes != reference.prompt_hashes:
+        differences.append(f"prompts {short(_hash_of(other.prompt_hashes))}")
+    if other.evalset_hashes != reference.evalset_hashes:
+        differences.append(f"eval sets {short(_hash_of(other.evalset_hashes))}")
+    return differences
+
+
+def _other_groups(reference: RunMeta, excluded: Sequence[RunSummary]) -> str:
+    """Every run the main table cannot hold, grouped with the runs it can stand beside."""
+    parts = [
+        heading("Measured on different ground", 2),
+        "These runs are not comparable to the table above -- a different judge, "
+        "corpus, prompt or eval set -- so each group gets a table of its own and "
+        "no frontier is drawn across groups. A quality score from one judge is not "
+        "in the same units as a quality score from another.",
+    ]
+    for group in comparable_groups(excluded):
+        meta = group[0].meta
+        labels = assign_labels(group)
+        parts.append(heading("Different " + ", ".join(_differences(reference, meta)), 3))
         parts.append(
             table(
-                ["run", "corpus", "prompts", "eval sets"],
+                [
+                    "config",
+                    "generator",
+                    "quality",
+                    "recall@k",
+                    "grounded",
+                    "relevant",
+                    "citations",
+                    "p95 ms",
+                    "projected $/q",
+                ],
                 [
                     [
-                        summary.run_id,
-                        short(summary.meta.corpus_hash),
-                        short(_hash_of(summary.meta.prompt_hashes)),
-                        short(_hash_of(summary.meta.evalset_hashes)),
+                        labels[summary.run_id],
+                        _fingerprint_name(summary.meta, "generator"),
+                        number(summary.quality),
+                        number(summary.metrics.get("recall_at_k")),
+                        number(summary.metrics.get("judge_groundedness"), 2),
+                        number(summary.metrics.get("judge_relevance"), 2),
+                        number(summary.metrics.get("judge_citation_correctness"), 2),
+                        number(summary.p95_ms, 1),
+                        number(summary.projected_cost, 6),
                     ]
-                    for summary in excluded
+                    for summary in sorted(group, key=lambda item: -item.quality)
                 ],
             )
         )
-    return "\n\n".join(parts) + "\n"
+    return "\n\n".join(parts)
+
+
+def _distinct(summaries: Sequence[RunSummary], key: str) -> str:
+    """Every value a fingerprint node takes across the table, not just the first."""
+    return ", ".join(sorted({_fingerprint_name(summary.meta, key) for summary in summaries}))
 
 
 def _figure(relative: str, caption: str) -> str:

@@ -216,3 +216,34 @@ def test_committed_baseline_matches_the_committed_corpus(repo_root: Path) -> Non
     assert frozen.metrics["composite_quality"] > 0.0
     assert frozen.prompt_hashes
     assert frozen.evalset_hashes
+
+
+def test_a_different_judge_is_not_comparable() -> None:
+    """The judge is the ruler: a composite scored by another judge is in other units."""
+    rule = {"judge": {"name": "heuristic", "model": "rule-based-v1"}}
+    model = {"judge": {"name": "api", "model": "qwen/qwen3.8-27b"}}
+    frozen = baseline(fingerprint=rule)
+    result = evaluate_gate(frozen, meta(fingerprint=model), metrics(), gate_config())
+    assert not result.passed
+    assert not result.comparable
+    assert "judge" in result.blocking[0] and "qwen/qwen3.8-27b" in result.blocking[0]
+
+
+def test_the_same_judge_with_a_different_setting_is_not_comparable() -> None:
+    """A different prompt or reasoning effort is a different instrument too."""
+    before = {"judge": {"name": "api", "model": "m", "prompt_hash": "a"}}
+    after = {"judge": {"name": "api", "model": "m", "prompt_hash": "b"}}
+    result = evaluate_gate(
+        baseline(fingerprint=before), meta(fingerprint=after), metrics(), gate_config()
+    )
+    assert not result.comparable
+
+
+def test_a_changed_generator_is_still_judged_not_refused() -> None:
+    """The generator is the system under test; judging its change is the point."""
+    before = {"generator": {"model": "a"}, "judge": {"model": "j"}}
+    after = {"generator": {"model": "b"}, "judge": {"model": "j"}}
+    result = evaluate_gate(
+        baseline(fingerprint=before), meta(fingerprint=after), metrics(), gate_config()
+    )
+    assert result.comparable

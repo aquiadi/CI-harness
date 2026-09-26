@@ -20,13 +20,13 @@ from typing import Any
 from rich.console import Console
 
 from evalgate.config import JudgeConfig, load_config, resolve_path, typed_node
-from evalgate.evalsets.schemas import AnswerExample, HumanLabel, JudgeScore, RetrievalExample
+from evalgate.evalsets.judgments import JudgmentSet, load_judgment_sets
+from evalgate.evalsets.schemas import AnswerExample, HumanLabel, RetrievalExample
 from evalgate.evalsets.store import read_jsonl
-from evalgate.evaluation.agreement import axis_agreement
 from evalgate.gate.baseline import read_baseline
 from evalgate.hashing import short
 from evalgate.prompts import Prompt
-from evalgate.reporting.calibration import partition_labels
+from evalgate.reporting.calibration import agreement_rows, partition_labels, scale_of
 from evalgate.reporting.markdown import number, table
 from evalgate.reporting.pareto import (
     RunSummary,
@@ -82,36 +82,33 @@ def _pareto_rows(summaries: list[RunSummary], limit: int) -> str:
 
 
 def _calibration_rows(
-    judgments: list[JudgeScore], labels: list[HumanLabel], judge: JudgeConfig
-) -> tuple[str, str, int, str]:
-    """Agreement table, the label source, the pairs covered, and a one-line summary."""
+    sets: list[JudgmentSet], labels: list[HumanLabel], fallback: JudgeConfig
+) -> tuple[str, str, int, str, str]:
+    """Agreement table, label source, pairs covered, one-line summary, and the judge.
+
+    The judge is the one whose scores these are -- the first set on disk, LLM
+    judges before rules -- never the configured one. Naming the configured
+    judge is how the README once attributed an LLM judge's kappa to the
+    rule-based baseline.
+    """
     label_sets = partition_labels(labels)
-    if not label_sets or not judgments:
-        return ("No judgments or labels on disk yet.", "none", 0, "not yet measured")
+    if not label_sets or not sets:
+        return ("No judgments or labels on disk yet.", "none", 0, "not yet measured", "none")
     label_set = label_sets[0]
-    by_key = {
-        (item.example_id, item.answer_hash): item for item in judgments if item.variant == "primary"
-    }
+    judgment_set = sets[0]
+    agreement, _ = agreement_rows(label_set, judgment_set, scale_of(judgment_set, fallback))
     rows = []
     headline: list[str] = []
     covered = 0
-    for axis in judge.axes:
-        human: list[int] = []
-        judged: list[int] = []
-        for label in sorted(label_set.labels, key=lambda item: item.example_id):
-            judgment = by_key.get((label.example_id, label.answer_hash))
-            if judgment is None:
-                continue
-            human.append(label.scores.as_dict()[axis])
-            judged.append(judgment.scores.as_dict()[axis])
-        result = axis_agreement(axis, human, judged, judge.scale_min, judge.scale_max)
+    for result in agreement:
         covered = max(covered, result.n)
         headline.append(
-            f"{number(result.kappa) if result.is_defined else UNDEFINED} {axis.replace('_', ' ')}"
+            f"{number(result.kappa) if result.is_defined else UNDEFINED} "
+            f"{result.axis.replace('_', ' ')}"
         )
         rows.append(
             [
-                axis,
+                result.axis,
                 result.n,
                 number(result.kappa) if result.is_defined else UNDEFINED,
                 number(result.quadratic_kappa) if result.is_defined else UNDEFINED,
@@ -129,7 +126,13 @@ def _calibration_rows(
         "mean human",
         "mean judge",
     ]
-    return table(headers, rows), label_set.name, covered, " / ".join(headline)
+    return (
+        table(headers, rows),
+        label_set.name,
+        covered,
+        " / ".join(headline),
+        judgment_set.judge_model,
+    )
 
 
 DEFAULT_OVERRIDES = ["+experiment=baseline"]
@@ -147,13 +150,13 @@ def build_values(root: Path, overrides: list[str] | None = None) -> dict[str, An
     judge = typed_node(cfg, "judge", JudgeConfig)
 
     summaries, excluded = partition_comparable(latest_per_config(load_summaries(root / "runs")))
-    judgments = read_jsonl(resolve_path(cfg, "evalsets.judge_scores_path"), JudgeScore)
+    judgment_sets = load_judgment_sets(resolve_path(cfg, "evalsets.judgments_dir"))
     labels = [
         *read_jsonl(resolve_path(cfg, "evalsets.human_labels_path"), HumanLabel),
         *read_jsonl(resolve_path(cfg, "evalsets.seed_labels_path"), HumanLabel),
     ]
-    calibration_table, label_source, label_pairs, headline = _calibration_rows(
-        judgments, labels, judge
+    calibration_table, label_source, label_pairs, headline, calibration_judge = _calibration_rows(
+        judgment_sets, labels, judge
     )
 
     retrieval_set = read_jsonl(resolve_path(cfg, "evalsets.retrieval_path"), RetrievalExample)
@@ -191,6 +194,7 @@ def build_values(root: Path, overrides: list[str] | None = None) -> dict[str, An
         "label_source": label_source,
         "label_pairs": str(label_pairs),
         "calibration_headline": headline,
+        "calibration_judge": calibration_judge,
         "retrieval_slots": str(len(retrieval_set)),
         "answer_slots": str(len(answer_set)),
     }

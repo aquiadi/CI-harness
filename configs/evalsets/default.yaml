@@ -10,5 +10,7 @@ human_labels_path: ${paths.eval_dir}/${corpus.name}/human_labels.jsonl
 seed_labels_path: ${paths.eval_dir}/${corpus.name}/seed_labels.jsonl
 # Hand-written seed files that `make seed` materialises into the paths above.
 seeds_dir: ${paths.eval_dir}/${corpus.name}/seeds
-judge_scores_path: ${paths.eval_dir}/${corpus.name}/judge_scores.jsonl
+# One file per judge, named after its model, each with a .meta.json recording
+# the stack it judged over. A second judge never overwrites the first.
+judgments_dir: ${paths.eval_dir}/${corpus.name}/judgments
 limit: null

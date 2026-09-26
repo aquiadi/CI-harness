@@ -9,7 +9,10 @@ Note which hashes are *not* here as a comparability requirement: the config
 hash and the index hash. A pull request that changes the retriever, the chunker
 or k changes both, and that is exactly the case the gate exists to judge. What
 must not change silently is the ground the comparison stands on -- the same
-documents, the same prompts, the same questions.
+documents, the same prompts, the same questions, and the same judge. The judge
+is the instrument, not the system under test: a composite scored by a
+different judge is in different units, and a drop or a gain against the
+baseline would describe the ruler rather than the change.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from evalgate.errors import EvalgateError
+from evalgate.hashing import hash_obj
 from evalgate.runs.store import RunMeta
 
 SCHEMA_VERSION = 1
@@ -56,6 +60,12 @@ class Baseline(BaseModel):
         Returns human-readable descriptions, empty when the two are comparable.
         """
         differences: list[str] = []
+        judge_before = self.fingerprint.get("judge")
+        judge_after = meta.fingerprint.get("judge")
+        if judge_before != judge_after:
+            differences.append(
+                f"judge: baseline {_judge_name(judge_before)}, run {_judge_name(judge_after)}"
+            )
         if meta.corpus_hash != self.corpus_hash:
             differences.append(
                 f"corpus hash: baseline {self.corpus_hash[:12]}, run {meta.corpus_hash[:12]}"
@@ -73,6 +83,17 @@ class Baseline(BaseModel):
                 if before != after:
                     differences.append(f"eval set {name}: baseline {before[:12]}, run {after[:12]}")
         return differences
+
+
+def _judge_name(node: Any) -> str:
+    """A judge's model and a short hash of its full fingerprint.
+
+    The hash distinguishes two configurations of one model -- a different
+    prompt or reasoning effort is a different instrument too.
+    """
+    if not isinstance(node, dict):
+        return "none"
+    return f"{node.get('model') or node.get('name') or '?'} ({hash_obj(node)[:8]})"
 
 
 def freeze(

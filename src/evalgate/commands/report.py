@@ -10,8 +10,7 @@ from __future__ import annotations
 from rich.console import Console
 
 from evalgate.config import load_config, resolve_path
-from evalgate.hashing import short
-from evalgate.pipeline import build_stack
+from evalgate.pipeline import build_tokenizer
 from evalgate.reporting.calibration import build_report as build_calibration
 from evalgate.reporting.calibration import write_report
 from evalgate.reporting.pareto import build_report as build_pareto
@@ -24,21 +23,15 @@ PARETO_FILE = "pareto.md"
 
 
 def run(overrides: list[str]) -> int:
-    """Write reports/judge_calibration.md."""
+    """Write reports/judge_calibration.md and reports/pareto.md."""
     cfg = load_config(overrides=overrides)
     reports_dir = resolve_path(cfg, "paths.reports_dir")
 
-    stack = build_stack(cfg)
-    summary = {
-        "corpus": f"{stack.corpus.name} ({short(stack.corpus.corpus_hash)})",
-        "chunker": str(cfg.chunker.name),
-        "embedder": f"{cfg.embedder.name} / {cfg.embedder.model}",
-        "retriever": f"{cfg.retriever.name} (k={cfg.retriever.k})",
-        "index": short(stack.index.meta.index_hash),
-        "api mode": str(cfg.api.mode),
-    }
+    # No stack is built: every judgment set carries the stack it was scored
+    # over, and describing it from the current config is how the report once
+    # attributed one judge's scores to another.
     calibration_path = reports_dir / CALIBRATION_FILE
-    changed = write_report(calibration_path, build_calibration(cfg, stack.tokenizer, summary))
+    changed = write_report(calibration_path, build_calibration(cfg, build_tokenizer(cfg)))
     console.print(f"{'wrote' if changed else 'unchanged'} {calibration_path}")
 
     summaries = latest_per_config(load_summaries(resolve_path(cfg, "paths.runs_dir")))
