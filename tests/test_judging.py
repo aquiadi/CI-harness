@@ -11,7 +11,7 @@ from evalgate.config import load_config
 from evalgate.context import context_chunk_ids, format_context
 from evalgate.judging.base import JudgeInput
 from evalgate.judging.factory import build_judge
-from evalgate.judging.heuristic import HeuristicJudge
+from evalgate.judging.heuristic import HeuristicJudge, cited_claims, supports
 from evalgate.judging.llm import LLMJudge
 from evalgate.judging.schema import build_judgment_model, split_judgment
 from evalgate.models.base import SchemaViolationError
@@ -227,3 +227,64 @@ def test_context_rendering_labels_every_chunk_with_its_id() -> None:
     assert "[d#0001]" in rendered
     assert "[d#0002]" in rendered
     assert context_chunk_ids([chunk("d#0001", "alpha")]) == ["d#0001"]
+
+
+# rule-based-v2: a citation has to be supported by the chunk it names.
+
+DEADLINE = chunk("reg#0006", "The authority shall decide within 120 calendar days of receipt.")
+PRICE = chunk("faq#0003", "The price is the weekly average of closing auction prices.", rank=1)
+
+
+def v2() -> HeuristicJudge:
+    return HeuristicJudge(
+        name="heuristic",
+        model="rule-based-v2",
+        axes=["groundedness", "relevance", "citation_correctness"],
+        scale_min=1,
+        scale_max=5,
+        citation_support_min=0.6,
+    )
+
+
+def test_a_citation_closes_the_sentence_before_it() -> None:
+    answer = "No answer on VAT. The authority decides within 120 days [reg#0006]. Next [faq#0003]."
+    claims = cited_claims(answer)
+    assert claims[0] == ("reg#0006", "The authority decides within 120 days")
+    assert claims[1] == ("faq#0003", "Next")
+
+
+def test_a_marker_after_the_full_stop_belongs_to_the_sentence_before() -> None:
+    claims = cited_claims("The price is the weekly average. [faq#0003]")
+    assert claims == [("faq#0003", "The price is the weekly average.")]
+
+
+def test_consecutive_markers_share_one_claim() -> None:
+    claims = cited_claims("The price is the weekly average [faq#0003][reg#0006].")
+    assert [claim for _, claim in claims] == ["The price is the weekly average"] * 2
+
+
+def test_a_wrong_number_is_unsupported_however_many_words_match() -> None:
+    """The labeller's seed-a-003: '90 days' cited to a chunk that says 120."""
+    assert not supports(DEADLINE.text, "The authority shall decide within 90 calendar days", 0.6)
+    assert supports(DEADLINE.text, "The authority shall decide within 120 calendar days", 0.6)
+
+
+def test_v2_faults_a_citation_that_names_the_wrong_chunk_in_the_context() -> None:
+    """v1 accepts any chunk that is in the context; the labeller did not."""
+    answer = "The price is the weekly average of closing auction prices [reg#0006]."
+    context = [DEADLINE, PRICE]
+    v1 = build_judge(load_config(overrides=["judge=heuristic"]))
+    assert v1.score(item(answer, context)).scores.citation_correctness == 5
+    assert v2().score(item(answer, context)).scores.citation_correctness == 1
+
+
+def test_v2_credits_a_citation_to_the_chunk_that_holds_the_evidence() -> None:
+    answer = "The price is the weekly average of closing auction prices [faq#0003]."
+    assert v2().score(item(answer, [DEADLINE, PRICE])).scores.citation_correctness == 5
+
+
+def test_v1_fingerprints_are_unchanged_by_the_new_option() -> None:
+    """Every recorded v1 run must stay comparable to a fresh v1 run."""
+    v1 = build_judge(load_config(overrides=["judge=heuristic"]))
+    assert "citation_support_min" not in v1.fingerprint()
+    assert v2().fingerprint()["citation_support_min"] == 0.6

@@ -20,6 +20,16 @@ declines when the evidence is present is not.
 *citation_correctness*: the share of the answer's citations that name a chunk
 in its context, penalised when it makes no citations at all.
 
+With `citation_support_min` set (`rule-based-v2`), a citation must also be
+*supported* by the chunk it names: the text it is attached to -- everything
+between it and the previous citation -- must have at least that share of its
+content words in the cited chunk, and every number in that text must appear
+there too. That is the rule the human labeller applied: a citation that names
+a chunk in the context but not the one holding the evidence is wrong, and so is
+one attached to "90 days" when the cited chunk says 120. Numbers get their own
+test because in regulatory text they carry the claim -- a deadline, a
+threshold, an amount -- and one wrong digit is a small share of the words.
+
 It is fast, free, deterministic, and immune by construction to the position and
 self-preference biases the probes look for -- which is itself informative when
 comparing it to the LLM judge.
@@ -31,7 +41,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from evalgate.citations import audit_citations
+from evalgate.citations import CITATION, audit_citations
 from evalgate.context import context_chunk_ids
 from evalgate.corpus.manifest import utc_now_iso
 from evalgate.evalsets.schemas import AxisScores, JudgeScore
@@ -97,6 +107,50 @@ def _scale(fraction: float, low: int, high: int) -> int:
     return max(low, min(high, low + round(fraction * span)))
 
 
+NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
+# Splits an answer around its citation markers, keeping the markers.
+MARKER_SPLIT = re.compile(r"(\[[A-Za-z0-9_.\-]+#\d+\])")
+
+
+def _numbers(text: str) -> set[str]:
+    return {match.replace(",", "") for match in NUMBER.findall(text)}
+
+
+def cited_claims(answer: str) -> list[tuple[str, str]]:
+    """(chunk id, the text that citation vouches for), in answer order.
+
+    The claim is the sentence the marker closes: the text before it, back to
+    the previous marker or the previous sentence boundary, whichever is nearer.
+    A marker placed after the full stop still belongs to the sentence before
+    it, and a marker directly after another shares its claim -- `claim [a][b]`
+    cites both chunks for the same text. A refusal sentence earlier in the
+    answer is not part of what a later citation vouches for.
+    """
+    claims: list[tuple[str, str]] = []
+    pending = ""
+    last_claim = ""
+    for part in MARKER_SPLIT.split(flatten(answer)):
+        match = CITATION.fullmatch(part)
+        if match is None:
+            pending += part
+            continue
+        fragments = [piece for piece in SENTENCE.split(pending) if _content_words(piece)]
+        claim = fragments[-1].strip() if fragments else last_claim
+        claims.append((match.group(1), claim))
+        last_claim, pending = claim, ""
+    return claims
+
+
+def supports(chunk_text: str, claim: str, min_coverage: float) -> bool:
+    """Whether a chunk holds the evidence for the claim attached to its citation."""
+    claim_words = _content_words(claim)
+    if not claim_words:
+        return False
+    chunk_words = _content_words(chunk_text)
+    coverage = len(claim_words & chunk_words) / len(claim_words)
+    return coverage >= min_coverage and _numbers(claim) <= _numbers(chunk_text)
+
+
 @dataclass(slots=True)
 class HeuristicJudge:
     """Rule-based baseline scoring on the same axes as the LLM judge."""
@@ -106,6 +160,9 @@ class HeuristicJudge:
     axes: list[str]
     scale_min: int
     scale_max: int
+    # None: v1, a citation is correct when it names a chunk in the context.
+    # Set: v2, it must also be supported by the chunk it names.
+    citation_support_min: float | None = None
 
     def score(self, item: JudgeInput) -> JudgeScore:
         """Grade one answer by rule."""
@@ -163,13 +220,26 @@ class HeuristicJudge:
         audit = audit_citations(item.answer, context_chunk_ids(item.context))
         if audit.count == 0:
             return self.scale_min
-        return _scale(audit.precision, self.scale_min, self.scale_max)
+        if self.citation_support_min is None:
+            return _scale(audit.precision, self.scale_min, self.scale_max)
+        texts = {result.chunk_id: result.text for result in item.context}
+        claims = cited_claims(item.answer)
+        supported = [
+            chunk_id in texts and supports(texts[chunk_id], claim, self.citation_support_min)
+            for chunk_id, claim in claims
+        ]
+        return _scale(sum(supported) / len(supported), self.scale_min, self.scale_max)
 
     def fingerprint(self) -> dict[str, Any]:
         """Identity of this judge and its parameters."""
-        return {
+        identity: dict[str, Any] = {
             "name": self.name,
             "model": self.model,
             "axes": list(self.axes),
             "scale": [self.scale_min, self.scale_max],
         }
+        # Only when set, so every v1 fingerprint recorded before it existed
+        # still matches.
+        if self.citation_support_min is not None:
+            identity["citation_support_min"] = self.citation_support_min
+        return identity

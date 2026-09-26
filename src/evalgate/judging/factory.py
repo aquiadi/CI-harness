@@ -37,6 +37,7 @@ def build_judge(cfg: DictConfig, client: ModelClient | None = None) -> Judge:
                 axes=list(settings.axes),
                 scale_min=settings.scale_min,
                 scale_max=settings.scale_max,
+                citation_support_min=settings.citation_support_min,
             ),
         )
     if settings.provider not in MODEL_CLIENT_PROVIDERS:

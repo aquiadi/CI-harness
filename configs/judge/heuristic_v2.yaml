@@ -1,0 +1,23 @@
+# The rule-based baseline with a citation check that matches the labelling
+# rule: a citation is correct only if the chunk it names holds the evidence --
+# at least citation_support_min of the attached text's content words, and
+# every number in it. v1 (heuristic.yaml) only checks that the named chunk is
+# in the context, which is why it scores 5.00 on citations for every
+# extractive answer. See evalgate/judging/heuristic.py.
+#
+# v1 stays the gate's judge: the frozen baseline and the committed sweep were
+# scored with it, and changing the judge changes the ground (D-0051).
+provider: heuristic
+model: rule-based-v2
+prompt: judge/rubric_v1.md
+max_tokens: 0
+temperature: 0.0
+max_attempts: 1
+axes: [groundedness, relevance, citation_correctness]
+scale_min: 1
+scale_max: 5
+input_usd_per_mtok: 0.0
+output_usd_per_mtok: 0.0
+answers_from: reference
+run_id: null
+citation_support_min: 0.6

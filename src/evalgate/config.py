@@ -135,6 +135,9 @@ class JudgeConfig:
     # produced by a run under runs/.
     answers_from: str = "reference"
     run_id: str | None = None
+    # Rule-based judge only. Set, a citation must be supported by the chunk it
+    # names, not merely name one in the context (rule-based-v2).
+    citation_support_min: float | None = None
 
 
 @dataclass

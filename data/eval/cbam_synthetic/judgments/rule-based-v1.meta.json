@@ -1,0 +1,26 @@
+{
+  "answers_from": "reference",
+  "api_mode": "replay",
+  "axes": [
+    "groundedness",
+    "relevance",
+    "citation_correctness"
+  ],
+  "generators": [
+    "reference"
+  ],
+  "judge_model": "rule-based-v1",
+  "judge_prompt": "judge/rubric_v1.md",
+  "judge_prompt_hash": "",
+  "judge_provider": "heuristic",
+  "note": null,
+  "scale_max": 5,
+  "scale_min": 1,
+  "stack": {
+    "chunker": "recursive_structural",
+    "corpus": "cbam_synthetic (83d3414da810)",
+    "embedder": "hashed / hashed-ngram-projection-v1",
+    "index": "b906a7cf5e52",
+    "retriever": "hybrid (k=10)"
+  }
+}

@@ -1354,3 +1354,44 @@ tracks the clients active in one window.
 
 Cost: an image build per push, about two minutes. The limiter is still in
 process memory and still per replica; D-0048's caveats stand.
+
+## D-0057 -- A rule-based judge that checks what a citation vouches for
+
+2026-09-26, post-M6
+
+`configs/judge/heuristic_v2.yaml` (`rule-based-v2`) scores a citation correct
+only if the chunk it names holds the evidence: at least 60% of the content words
+in the sentence the citation closes, and every number in that sentence. v1
+counts a citation correct whenever the named chunk is anywhere in the context.
+Both rule-based judges' scores for the fifteen labelled answers are now on disk
+beside the LLM judge's, and the calibration report compares all three.
+
+Why: v1's rule is why every extractive row in the sweep scores 5.00 on
+citations, and it is not the rule the labeller applied. The labeller's notes
+say it plainly -- "the cited chunk identifier does not match the retrieved
+evidence", "the answer states 90 days, but the cited context explicitly states
+120" -- and both are checkable without a model. On the fifteen labels, v2's
+citation kappa is 0.348 against v1's 0.211, level with the Qwen judge's 0.348,
+though its quadratic kappa (0.386) stays below Qwen's (0.539). The threshold
+was set before measuring and not tuned against these fifteen items; tuning a
+rule on its own calibration set would report the fit, not the rule.
+
+Numbers get their own test because in regulatory text they carry the claim,
+and one wrong digit is a small share of the words.
+
+What it cannot do, and the report shows: a paraphrase ("sold, priced,
+surrendered" for "sale", "price") is unsupported to a word-overlap rule, and a
+citation to a chunk the rule-based judges' retrieval stack did not return is
+dangling to them even when the labeller saw it. The rule judges scored the
+answers over hashed embeddings -- bge weights were not reachable when they were
+produced -- so two of their five disagreements with the labeller come from
+the stack, not the rule. The report prints each judge's stack beside its
+kappa for that reason.
+
+v1 stays the gate's judge. The frozen baseline and the committed sweep were
+scored with it, and moving the gate to v2 is a change of instrument (D-0051)
+that needs a deliberate re-freeze; `citation_support_min` enters the
+fingerprint only when set, so every v1 record still matches.
+
+Cost: a third judgments file to keep in step with the answer set, and a rule
+that will read as stricter than a person on paraphrase.
