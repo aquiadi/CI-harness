@@ -1,0 +1,11 @@
+# How serving latency is measured. One untimed pass over every question first,
+# then each retrieval timed `repeats` times and the median kept. Identical
+# back-to-back runs timed once, cold, put p95 30% apart -- more than the 20%
+# latency threshold -- and this holds them to about 10%.
+#
+# Retrieval only: a generator is called once per question whatever this says,
+# because repeating a model call repeats its cost. A cross-encoder reranker
+# makes every repeat slow; `timing.repeats=1` is reasonable for a sweep of
+# rerank cells, and the run records which protocol it used.
+warmup: true
+repeats: 5

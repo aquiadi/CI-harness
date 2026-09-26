@@ -1253,3 +1253,104 @@ README, rendered from the same runs, said 65.
 
 Cost: `load_eval_sets` runs once more per sweep cell to compute the key; it
 reads two small files.
+
+## D-0054 -- Every component of the composite has a floor, and the gate names the questions that moved
+
+2026-09-26, post-M6
+
+The gate now fails when any single component of the composite falls by more
+than `gate.component_drop_max` (0.1 on its normalised 0..1 scale), in addition
+to the three headline checks. The baseline keeps one record per question
+(schema 2), and the gate report lists the questions that went from a hit to a
+miss or lost judge points, with a paired bootstrap interval around the
+composite delta.
+
+Why the floors: the composite is a weighted mean, and a weighted mean can hold
+still while its parts move in opposite directions. Citation correctness falling
+by a fifth while recall rises to cover it read as no change at all. The limit
+is absolute rather than a percentage because the components are already on a
+common 0..1 scale, where a drop of 0.1 means the same thing from any starting
+point. At fifteen questions one retrieval miss is 0.067 of recall, so the floor
+allows one miss and refuses two. This is a new, tighter threshold, not a
+widened one.
+
+Why per question: an average that dropped does not say which question got
+worse, and deciding whether a regression is real starts there. The current
+baseline gained its records by re-freezing its own recorded run
+(`make freeze ARGS=from_run=...`), which re-measures nothing, so no number in it
+moved; its stale note claiming it was the sweep's winner was corrected at the
+same time.
+
+Why the interval is reported and not gated: the offline stack is
+deterministic, so the delta is exact; what the interval says is how far it
+could move under another sample of fifteen questions. A gate that passed a
+drop because that interval was wide would be widening its own threshold. A
+wide interval is an argument for more questions.
+
+Cost: seven checks where there were three, and the gate report is longer. The
+bootstrap is seeded from `seed`, so identical runs render identical reports.
+
+## D-0055 -- Latency is timed as a warm median, and CI compares it on one runner
+
+2026-09-26, post-M6
+
+Every retrieval is now timed five times after an untimed warm-up pass, and the
+median kept (`configs/timing/`); the run records the protocol. In CI the gate
+job first measures the base commit on the same runner and passes its gate.json
+as `gate.latency_reference_path`, so latency is compared machine to machine.
+Quality is still compared to the frozen baseline.
+
+Why: identical back-to-back runs on one machine, timed once and cold, put p95
+up to 30% apart -- wider than the 20% threshold, so the check could not tell a
+regression from noise. It passed in CI only because GitHub's runners happened
+to be faster than the machine that froze the baseline, which also meant a real
+regression could hide in the gap. The warm median holds cross-process spread to
+about 2% on the offline stack. Comparing against the base commit removes the
+hardware from the comparison; comparing quality against the base commit
+instead of the baseline would let it ratchet down one small step per merge, so
+that stays frozen.
+
+Timing sits outside the fingerprint: it changes how precisely latency is
+measured, not what the system is. A model call is never repeated for timing --
+that would repeat its cost -- so only retrieval is. The committed sweep and
+the baseline were timed once and cold; they are not re-measured, and the gate
+report says when it is comparing across protocols. The first CI run after this
+change compares a warm median against a cold single shot and will read as a
+large improvement; every run after that compares like with like.
+
+Cost: retrieval is timed six times per question, which is nothing for the
+offline stack and slow for a cross-encoder reranker -- `timing.repeats=1` is
+reasonable for a sweep of rerank cells. The gate job runs the evaluation twice.
+
+## D-0056 -- The container is built in CI, and serving defaults to the offline stack
+
+2026-09-26, post-M6
+
+A CI job now builds the image and asks it a question. `make serve` passes
+PROFILE to the app, and the app serves `+experiment=baseline` when
+`EVALGATE_OVERRIDES` is unset. The rate limiter keys on the connection's peer
+unless `EVALGATE_TRUSTED_PROXY_HOPS` says how many proxies append to
+X-Forwarded-For, and forgets idle clients.
+
+Why: the image had never been built (limitation 9), and building it found two
+defects. `.dockerignore` excluded `data/corpus/raw`, which the Dockerfile
+copies, so every build failed. And the virtualenv was built in `/build` and
+copied to `/app`: a venv records its own path in every script's shebang and in
+the project's editable install, so the container would have exited with
+`exec /app/.venv/bin/uvicorn: no such file or directory`. The build stage now
+works in `/app`. A test holds the Dockerfile and `.dockerignore` to agreement,
+and the CI job holds the rest.
+
+`make serve` ran the config tree's defaults -- a local encoder that needs
+torch and an API generator with no cassettes -- and failed at startup on a
+fresh clone, while the README said it needed neither.
+
+The limiter keyed on the first X-Forwarded-For entry, which the caller writes.
+A script that changed it per request was never limited, and grew the limiter's
+table by one entry per request. The entry a trusted proxy appended is the only
+one a caller cannot forge, so that is the one used; with no trusted proxy the
+peer address is. Idle clients are swept once the table passes a size, so memory
+tracks the clients active in one window.
+
+Cost: an image build per push, about two minutes. The limiter is still in
+process memory and still per replica; D-0048's caveats stand.

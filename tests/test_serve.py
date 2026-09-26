@@ -97,6 +97,12 @@ def test_overrides_come_from_the_environment(monkeypatch: pytest.MonkeyPatch) ->
     assert overrides_from_env() == ["+experiment=live", "retriever.k=3"]
 
 
-def test_no_overrides_is_an_empty_list(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unset_overrides_serve_the_offline_stack(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The config tree's defaults need torch and a recorded API; this does not."""
     monkeypatch.delenv("EVALGATE_OVERRIDES", raising=False)
+    assert overrides_from_env() == ["+experiment=baseline"]
+
+
+def test_empty_overrides_mean_the_config_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EVALGATE_OVERRIDES", "")
     assert overrides_from_env() == []

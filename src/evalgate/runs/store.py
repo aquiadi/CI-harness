@@ -60,6 +60,9 @@ class RunMeta(BaseModel):
     api_mode: str
     replayed: bool
     fingerprint: dict[str, Any] = Field(default_factory=dict)
+    # How latency was timed. Empty for runs recorded before timing was
+    # configurable: those timed each retrieval once, cold.
+    timing: dict[str, Any] = Field(default_factory=dict)
     notes: str | None = None
 
     @property

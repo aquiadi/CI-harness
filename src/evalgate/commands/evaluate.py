@@ -16,10 +16,11 @@ from omegaconf import DictConfig
 from rich.console import Console
 from rich.table import Table
 
-from evalgate.config import GateConfig, load_config, resolve_path, typed_node
+from evalgate.config import GateConfig, JudgeConfig, load_config, resolve_path, typed_node
 from evalgate.evaluation.runner import RunOutcome, evaluate
 from evalgate.gate.baseline import read_baseline
-from evalgate.gate.check import evaluate_gate
+from evalgate.gate.check import evaluate_gate, load_latency_reference
+from evalgate.gate.items import compare
 from evalgate.generation.factory import build_generator
 from evalgate.judging.factory import build_judge
 from evalgate.models.client import build_model_client
@@ -62,6 +63,7 @@ def run(overrides: list[str]) -> int:
     """Measure, compare to the baseline, and set the exit code."""
     cfg = load_config(overrides=overrides)
     gate_cfg = typed_node(cfg, "gate", GateConfig)
+    judge_cfg = typed_node(cfg, "judge", JudgeConfig)
     baseline = read_baseline(resolve_path(cfg, "gate.baseline_path"))
 
     outcome = run_evaluation(cfg)
@@ -72,29 +74,62 @@ def run(overrides: list[str]) -> int:
         outcome.metrics,
         cfg,
     )
-    result = evaluate_gate(baseline, outcome.meta, outcome.metrics, gate_cfg)
+    reference = (
+        load_latency_reference(resolve_path(cfg, "gate.latency_reference_path"))
+        if gate_cfg.latency_reference_path
+        else None
+    )
+    result = evaluate_gate(baseline, outcome.meta, outcome.metrics, gate_cfg, reference)
+    comparison = compare(
+        baseline.items,
+        outcome.rows,
+        judge_cfg.axes,
+        gate_cfg.composite_weights,
+        (judge_cfg.scale_min, judge_cfg.scale_max),
+        gate_cfg.bootstrap_resamples,
+        gate_cfg.confidence,
+        int(cfg.seed),
+    )
 
     table = Table(title="quality gate", show_edge=False)
-    for column in ("check", "baseline", "this run", "delta", "limit", ""):
+    for column in ("check", "reference", "this run", "delta", "limit", ""):
         table.add_column(column, justify="right" if column not in {"check", ""} else "left")
     for check in result.checks:
-        delta = "-" if check.delta_pct is None else f"{check.delta_pct:+.2f}%"
         table.add_row(
             check.name,
             number(check.baseline, 6),
             number(check.current, 6),
-            delta,
-            f"{check.threshold_pct:.2f}%",
+            check.delta_label,
+            check.limit_label,
             "[green]PASS[/green]" if check.passed else "[red]FAIL[/red]",
         )
     console.print(table)
+    if comparison.interval is not None:
+        interval = comparison.interval
+        console.print(
+            f"composite delta {interval.delta:+.4f}, {interval.confidence:.0%} bootstrap "
+            f"interval {interval.low:+.4f} to {interval.high:+.4f} (reported, not gated)"
+        )
+    for change in comparison.worse[: gate_cfg.items_listed]:
+        console.print(
+            f"[yellow]worse:[/yellow] {change.example_id} {change.measure} "
+            f"{change.before:g} -> {change.after:g}"
+        )
 
     reports_dir = resolve_path(cfg, "paths.reports_dir")
-    (reports_dir).mkdir(parents=True, exist_ok=True)
+    reports_dir.mkdir(parents=True, exist_ok=True)
     (reports_dir / GATE_REPORT).write_text(
-        render(result, baseline, outcome.meta, outcome.metrics), encoding="utf-8"
+        render(
+            result,
+            baseline,
+            outcome.meta,
+            outcome.metrics,
+            comparison,
+            gate_cfg.items_listed,
+        ),
+        encoding="utf-8",
     )
-    write_json(reports_dir / GATE_JSON, result, baseline, outcome.meta)
+    write_json(reports_dir / GATE_JSON, result, baseline, outcome.meta, outcome.metrics, comparison)
 
     for reason in result.blocking:
         console.print(f"[red]blocking:[/red] {reason}")

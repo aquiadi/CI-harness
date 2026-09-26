@@ -1,8 +1,12 @@
 """Comparing a run to the baseline.
 
-Three checks, all with thresholds from `configs/gate/`: composite quality must
-not drop more than a set percentage, p95 latency must not rise more than
-another, and cost per query must not rise more than a third.
+Three headline checks, all with thresholds from `configs/gate/`: composite
+quality must not drop more than a set percentage, p95 latency must not rise
+more than another, and cost per query must not rise more than a third. Under
+them, every component of the composite has a floor of its own, because a
+composite can hold steady while one of its parts collapses and another rises
+to cover it -- citation correctness falling while recall improves reads as no
+change at all.
 
 Two behaviours are deliberate and load-bearing.
 
@@ -11,16 +15,18 @@ baseline, or a baseline that does not exist at all is a failure. The state
 where a regression is invisible must not be the state where the build is
 green.
 
-*Changed ground fails.* If the corpus, the prompts or the eval sets differ from
-the baseline's, the comparison is meaningless and the gate says so instead of
-producing a number. Changing them is legitimate -- it just requires re-freezing
-the baseline deliberately, which is a reviewable diff.
+*Changed ground fails.* If the corpus, the prompts, the eval sets or the judge
+differ from the baseline's, the comparison is meaningless and the gate says so
+instead of producing a number. Changing them is legitimate -- it just requires
+re-freezing the baseline deliberately, which is a reviewable diff.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from evalgate.config import GateConfig
@@ -31,6 +37,8 @@ QUALITY_METRIC = "composite_quality"
 LATENCY_METRIC = "p95_latency_s"
 COST_METRIC = "cost_per_query_usd"
 PROJECTED_COST_METRIC = "projected_cost_per_query_usd"
+COMPONENTS_METRIC = "composite_components"
+COMPONENT_PREFIX = "component: "
 
 
 class Direction(StrEnum):
@@ -42,22 +50,56 @@ class Direction(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Check:
-    """One threshold comparison."""
+    """One threshold comparison.
+
+    `delta` and `threshold` are percentages of the baseline when `absolute` is
+    false, and plain differences on the metric's own scale when it is true --
+    component scores are already normalised to 0..1, where a drop of 0.1 means
+    the same thing at any starting point and a percentage does not.
+    """
 
     name: str
     metric: str
     direction: Direction
     baseline: float | None
     current: float | None
-    delta_pct: float | None
-    threshold_pct: float
+    delta: float | None
+    threshold: float
     passed: bool
     reason: str = ""
+    absolute: bool = False
+    compared_to: str = "baseline"
 
     @property
     def status(self) -> str:
         """PASS or FAIL, for tables and logs."""
         return "PASS" if self.passed else "FAIL"
+
+    @property
+    def delta_label(self) -> str:
+        """The change, in the check's own unit."""
+        if self.delta is None:
+            return "-"
+        return f"{self.delta:+.3f}" if self.absolute else f"{self.delta:+.2f}%"
+
+    @property
+    def limit_label(self) -> str:
+        """The threshold, in the check's own unit."""
+        return f"{self.threshold:.3f}" if self.absolute else f"{self.threshold:.2f}%"
+
+
+@dataclass(frozen=True, slots=True)
+class LatencyReference:
+    """p95 latency measured somewhere other than the baseline.
+
+    The baseline's latency was measured on whatever machine froze it. CI runs
+    on another, so comparing the two measures the hardware as much as the
+    change. When CI measures the base commit on the same runner first, that is
+    the number a pull request's latency should be held to.
+    """
+
+    source: str
+    p95_latency_s: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +118,35 @@ class GateResult:
         return [check for check in self.checks if not check.passed]
 
 
+def load_latency_reference(path: Path) -> LatencyReference:
+    """Read a reference p95 from another run's gate.json or metrics.json.
+
+    Accepts the gate.json this module writes (`run_metrics`), the older shape
+    that only recorded the latency check's current value, and a run's
+    metrics.json -- because the reference comes from the base commit, whose
+    code may predate the current format. An unreadable reference is returned
+    with no value, and the latency check then fails: missing data fails.
+    """
+    source = str(path)
+    if not path.is_file():
+        return LatencyReference(source=source, p95_latency_s=None)
+    try:
+        payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return LatencyReference(source=source, p95_latency_s=None)
+    candidates: list[Any] = [
+        payload.get("run_metrics", {}).get(LATENCY_METRIC),
+        payload.get(LATENCY_METRIC),
+        *[
+            check.get("current")
+            for check in payload.get("checks", [])
+            if isinstance(check, dict) and check.get("metric") == LATENCY_METRIC
+        ],
+    ]
+    value = next((item for item in candidates if isinstance(item, int | float)), None)
+    return LatencyReference(source=source, p95_latency_s=None if value is None else float(value))
+
+
 def _relative_change(baseline: float, current: float) -> float | None:
     """Percentage change from baseline to current, or None when undefined."""
     if baseline == 0.0:
@@ -83,28 +154,51 @@ def _relative_change(baseline: float, current: float) -> float | None:
     return (current - baseline) / abs(baseline) * 100.0
 
 
+def _missing(
+    name: str,
+    metric: str,
+    direction: Direction,
+    baseline_value: Any,
+    current_value: Any,
+    threshold: float,
+    absolute: bool,
+    compared_to: str,
+) -> Check:
+    missing = compared_to if baseline_value is None else "run"
+    return Check(
+        name=name,
+        metric=metric,
+        direction=direction,
+        baseline=baseline_value,
+        current=current_value,
+        delta=None,
+        threshold=threshold,
+        passed=False,
+        reason=f"{metric} is missing from the {missing}; missing data fails the gate",
+        absolute=absolute,
+        compared_to=compared_to,
+    )
+
+
 def _check(
     name: str,
     metric: str,
     direction: Direction,
-    baseline_metrics: dict[str, Any],
-    current_metrics: dict[str, Any],
+    baseline_value: Any,
+    current_value: Any,
     threshold_pct: float,
+    compared_to: str = "baseline",
 ) -> Check:
-    baseline_value = baseline_metrics.get(metric)
-    current_value = current_metrics.get(metric)
     if baseline_value is None or current_value is None:
-        missing = "baseline" if baseline_value is None else "run"
-        return Check(
-            name=name,
-            metric=metric,
-            direction=direction,
-            baseline=baseline_value,
-            current=current_value,
-            delta_pct=None,
-            threshold_pct=threshold_pct,
-            passed=False,
-            reason=f"{metric} is missing from the {missing}; missing data fails the gate",
+        return _missing(
+            name,
+            metric,
+            direction,
+            baseline_value,
+            current_value,
+            threshold_pct,
+            False,
+            compared_to,
         )
 
     change = _relative_change(float(baseline_value), float(current_value))
@@ -118,13 +212,14 @@ def _check(
             direction=direction,
             baseline=float(baseline_value),
             current=float(current_value),
-            delta_pct=None,
-            threshold_pct=threshold_pct,
+            delta=None,
+            threshold=threshold_pct,
             passed=not regressed,
             reason=(
                 "baseline is zero, so a percentage change is undefined; "
                 + ("any increase is treated as a regression" if regressed else "no increase")
             ),
+            compared_to=compared_to,
         )
 
     if direction is Direction.HIGHER_IS_BETTER:
@@ -133,6 +228,8 @@ def _check(
     else:
         regressed = change > threshold_pct
         reason = f"rose {change:.2f}% (limit {threshold_pct:.2f}%)" if regressed else ""
+    if regressed and compared_to != "baseline":
+        reason += f" against {compared_to}"
 
     return Check(
         name=name,
@@ -140,11 +237,50 @@ def _check(
         direction=direction,
         baseline=float(baseline_value),
         current=float(current_value),
-        delta_pct=change,
-        threshold_pct=threshold_pct,
+        delta=change,
+        threshold=threshold_pct,
         passed=not regressed,
         reason=reason,
+        compared_to=compared_to,
     )
+
+
+def _component_check(
+    component: str, baseline_value: Any, current_value: Any, max_drop: float
+) -> Check:
+    """One composite component may not fall by more than `max_drop` points."""
+    name = f"{COMPONENT_PREFIX}{component}"
+    metric = f"{COMPONENTS_METRIC}.{component}"
+    if baseline_value is None or current_value is None:
+        return _missing(
+            name,
+            metric,
+            Direction.HIGHER_IS_BETTER,
+            baseline_value,
+            current_value,
+            max_drop,
+            True,
+            "baseline",
+        )
+    delta = float(current_value) - float(baseline_value)
+    regressed = -delta > max_drop
+    return Check(
+        name=name,
+        metric=metric,
+        direction=Direction.HIGHER_IS_BETTER,
+        baseline=float(baseline_value),
+        current=float(current_value),
+        delta=delta,
+        threshold=max_drop,
+        passed=not regressed,
+        reason=f"dropped {-delta:.3f} (limit {max_drop:.3f})" if regressed else "",
+        absolute=True,
+    )
+
+
+def _components(metrics: dict[str, Any]) -> dict[str, Any]:
+    node = metrics.get(COMPONENTS_METRIC)
+    return node if isinstance(node, dict) else {}
 
 
 def evaluate_gate(
@@ -152,6 +288,7 @@ def evaluate_gate(
     meta: RunMeta,
     metrics: dict[str, Any],
     gate: GateConfig,
+    latency_reference: LatencyReference | None = None,
 ) -> GateResult:
     """Compare a run to the baseline and decide whether the build passes."""
     mismatches = baseline.mismatches(meta)
@@ -164,32 +301,53 @@ def evaluate_gate(
         else PROJECTED_COST_METRIC
     )
 
+    if latency_reference is None:
+        latency = _check(
+            "p95 latency",
+            LATENCY_METRIC,
+            Direction.LOWER_IS_BETTER,
+            baseline.metrics.get(LATENCY_METRIC),
+            metrics.get(LATENCY_METRIC),
+            gate.p95_latency_rise_pct,
+        )
+    else:
+        latency = _check(
+            "p95 latency",
+            LATENCY_METRIC,
+            Direction.LOWER_IS_BETTER,
+            latency_reference.p95_latency_s,
+            metrics.get(LATENCY_METRIC),
+            gate.p95_latency_rise_pct,
+            compared_to=f"the reference run ({latency_reference.source})",
+        )
+
     checks = [
         _check(
             "quality",
             QUALITY_METRIC,
             Direction.HIGHER_IS_BETTER,
-            baseline.metrics,
-            metrics,
+            baseline.metrics.get(QUALITY_METRIC),
+            metrics.get(QUALITY_METRIC),
             gate.quality_drop_pct,
         ),
-        _check(
-            "p95 latency",
-            LATENCY_METRIC,
-            Direction.LOWER_IS_BETTER,
-            baseline.metrics,
-            metrics,
-            gate.p95_latency_rise_pct,
-        ),
+        latency,
         _check(
             "cost per query",
             cost_metric,
             Direction.LOWER_IS_BETTER,
-            baseline.metrics,
-            metrics,
+            baseline.metrics.get(cost_metric),
+            metrics.get(cost_metric),
             gate.cost_per_query_rise_pct,
         ),
     ]
+    before = _components(baseline.metrics)
+    after = _components(metrics)
+    checks.extend(
+        _component_check(
+            component, before.get(component), after.get(component), gate.component_drop_max
+        )
+        for component in sorted(gate.composite_weights)
+    )
 
     blocking = [f"{check.name}: {check.reason}" for check in checks if not check.passed]
     if mismatches:

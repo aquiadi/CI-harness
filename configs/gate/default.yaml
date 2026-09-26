@@ -12,3 +12,17 @@ composite_weights:
   relevance: 0.2
   citation_correctness: 0.3
   recall_at_k: 0.2
+# No single component of the composite may fall more than this, in absolute
+# terms on its normalised 0..1 scale -- a composite can hold steady while one
+# part collapses and another rises to cover it. At n=15, one question is about
+# 0.067 of recall and one judge point on one answer about 0.017 of an axis, so
+# this allows one retrieval miss or a few judge points, not two misses.
+component_drop_max: 0.1
+# Set by CI to the base commit's gate.json, measured on the same runner, so
+# latency is compared machine to machine. Unset, latency is compared to the
+# baseline, which was measured wherever it was frozen.
+latency_reference_path: null
+# Paired bootstrap over questions: reported in the gate report, never gated.
+bootstrap_resamples: 2000
+confidence: 0.95
+items_listed: 10

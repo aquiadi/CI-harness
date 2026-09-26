@@ -19,6 +19,7 @@ separately as `eval_cost_usd`.
 
 from __future__ import annotations
 
+import statistics
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -31,6 +32,7 @@ from evalgate.config import (
     GeneratorConfig,
     JudgeConfig,
     PricingConfig,
+    TimingConfig,
     config_hash,
     resolve_path,
     typed_node,
@@ -55,6 +57,7 @@ from evalgate.hashing import hash_obj, sha256_text
 from evalgate.judging.base import Judge, JudgeInput
 from evalgate.pipeline import RetrievalStack
 from evalgate.prompts import Prompt
+from evalgate.retrieval.base import Retrieved
 from evalgate.runs.store import RunMeta, make_run_id
 
 TASK_RETRIEVAL = "retrieval"
@@ -72,14 +75,35 @@ class RunOutcome:
     metrics: dict[str, Any]
 
 
+def timed_retrieve(
+    stack: RetrievalStack, question: str, k: int, repeats: int
+) -> tuple[list[Retrieved], float]:
+    """Retrieve, timing it `repeats` times and keeping the median.
+
+    A single timing of a ten-millisecond retrieval is dominated by whatever
+    else the machine was doing: identical back-to-back runs put p95 30% apart,
+    which a 20% latency threshold cannot tell from a regression. The median of
+    five, after a warm-up pass, holds it to about 10%. Retrieval is
+    deterministic, so the repeats return the same chunks; the first result is
+    the one scored.
+    """
+    timings: list[float] = []
+    results: list[Retrieved] | None = None
+    for _ in range(max(1, repeats)):
+        started = time.perf_counter()
+        found = stack.retriever.retrieve(question, k=k)
+        timings.append(time.perf_counter() - started)
+        if results is None:
+            results = found
+    return results or [], float(statistics.median(timings))
+
+
 def _retrieval_rows(
-    stack: RetrievalStack, examples: list[RetrievalExample], k: int
+    stack: RetrievalStack, examples: list[RetrievalExample], k: int, repeats: int
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for example in examples:
-        started = time.perf_counter()
-        results = stack.retriever.retrieve(example.question, k=k)
-        elapsed = time.perf_counter() - started
+        results, elapsed = timed_retrieve(stack, example.question, k, repeats)
         hit = first_hit_rank([result.text for result in results], example.gold_spans)
         rows.append(
             {
@@ -109,12 +133,11 @@ def _answer_rows(
     generator_cfg: GeneratorConfig,
     judge_cfg: JudgeConfig,
     pricing: PricingConfig,
+    repeats: int,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for example in examples:
-        started = time.perf_counter()
-        results = stack.retriever.retrieve(example.question, k=k)
-        retrieval_latency = time.perf_counter() - started
+        results, retrieval_latency = timed_retrieve(stack, example.question, k, repeats)
 
         generated = generator.generate(
             GenerationInput(example_id=example.id, question=example.question, context=results)
@@ -290,11 +313,28 @@ def evaluate(
     pricing = typed_node(cfg, "pricing", PricingConfig)
     k = int(cfg.retriever.k)
 
+    timing = typed_node(cfg, "timing", TimingConfig)
+
     eval_sets = load_eval_sets(cfg, stack.corpus)
+    if timing.warmup:
+        # Untimed: the first queries pay for lazy loads and cold caches, and
+        # that cost belongs to process start-up, not to any one question.
+        questions = [example.question for example in eval_sets.retrieval]
+        questions += [example.question for example in eval_sets.answers]
+        for question in questions:
+            stack.retriever.retrieve(question, k=k)
     rows = pd.DataFrame(
-        _retrieval_rows(stack, eval_sets.retrieval, k)
+        _retrieval_rows(stack, eval_sets.retrieval, k, timing.repeats)
         + _answer_rows(
-            stack, generator, judge, eval_sets.answers, k, generator_cfg, judge_cfg, pricing
+            stack,
+            generator,
+            judge,
+            eval_sets.answers,
+            k,
+            generator_cfg,
+            judge_cfg,
+            pricing,
+            timing.repeats,
         )
     )
     metrics = _aggregate(rows, gate, judge_cfg, k)
@@ -312,5 +352,6 @@ def evaluate(
         api_mode=str(cfg.api.mode),
         replayed=bool(rows.get("replayed", pd.Series(dtype=bool)).any()),
         fingerprint=measured_fingerprint(stack, generator, judge),
+        timing={"warmup": timing.warmup, "repeats": timing.repeats, "statistic": "median"},
     )
     return RunOutcome(meta=meta, rows=rows, metrics=metrics)

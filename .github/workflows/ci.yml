@@ -47,12 +47,15 @@ jobs:
   gate:
     name: quality gate (replay)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The base commit is measured below, so its history has to be here.
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -66,13 +69,44 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
 
+      # The frozen baseline's latency was measured on whatever machine froze
+      # it, so comparing a runner's latency to it measures the hardware as much
+      # as the change. The base commit, measured on this runner a minute
+      # earlier, is the number the change should be held to. Quality is still
+      # compared to the frozen baseline: a reference that moved with every
+      # merge would let quality ratchet down one small step at a time.
+      - name: Measure the base commit on this runner
+        id: base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "::notice::no base commit to measure; latency is compared to the frozen baseline"
+            exit 0
+          fi
+          git worktree add --detach "$RUNNER_TEMP/base" "$BASE_SHA"
+          (cd "$RUNNER_TEMP/base" && uv sync --frozen && make eval) || true
+          if [ -f "$RUNNER_TEMP/base/reports/gate.json" ]; then
+            echo "reference=$RUNNER_TEMP/base/reports/gate.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::the base commit produced no gate report; latency is compared to the frozen baseline"
+          fi
+
       # No credentials are available to this job and none are needed. The
       # baseline experiment runs on the offline stack, and any model call would
       # be served from a committed cassette or fail; it can never reach the
       # network. See the README section on the record/replay split.
       - name: Run the quality gate
         id: gate
-        run: make eval
+        env:
+          REFERENCE: ${{ steps.base.outputs.reference }}
+        run: |
+          if [ -n "$REFERENCE" ]; then
+            make eval ARGS="gate.latency_reference_path=$REFERENCE"
+          else
+            make eval
+          fi
 
       - name: Upload the gate report
         if: always()
@@ -111,3 +145,88 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
+
+  # The offline gate cannot see a citation regression: the extractive
+  # generator cites correctly by construction. This job gates a real generator
+  # and a real judge, replayed from committed cassettes, so it is as free and
+  # as deterministic as the offline one. It needs recording once with a key
+  # (`make record`); until baseline.llm.json exists it says it is not armed
+  # rather than pretending to have gated anything.
+  llm-gate:
+    name: quality gate (LLM, replayed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROFILE: "+experiment=llm_replay"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Is the LLM gate armed?
+        id: armed
+        run: |
+          if [ -f baseline.llm.json ]; then
+            echo "armed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "armed=false" >> "$GITHUB_OUTPUT"
+            message="No baseline.llm.json yet. Run 'make record' with GROQ_API_KEY set, then commit tests/cassettes/, baseline.llm.json and the run it writes under runs/."
+            echo "::notice title=LLM gate not armed::$message"
+            { echo "### LLM gate not armed"; echo; echo "$message"; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install uv
+        if: steps.armed.outputs.armed == 'true'
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.12
+        if: steps.armed.outputs.armed == 'true'
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        if: steps.armed.outputs.armed == 'true'
+        run: uv sync --frozen
+
+      - name: Run the LLM quality gate from cassettes
+        if: steps.armed.outputs.armed == 'true'
+        run: make eval
+
+      - name: Upload the LLM gate report
+        if: always() && steps.armed.outputs.armed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-gate-report
+          path: |
+            reports/gate.md
+            reports/gate.json
+
+  # The image is what a deployment runs. Building it and asking it one question
+  # is the only way to know the Dockerfile, the .dockerignore and the default
+  # overrides agree -- they did not, and nothing noticed while nothing built it.
+  docker:
+    name: container image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the serving image
+        run: make docker
+
+      - name: Start it and ask it a question
+        run: |
+          docker run -d --name evalgate -p 8000:8000 evalgate:local
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8000/health
+          curl -fsS -X POST http://127.0.0.1:8000/query \
+            -H 'content-type: application/json' \
+            -d '{"question": "When is the quarterly report due?"}' \
+            | python3 -c 'import json, sys; body = json.load(sys.stdin); assert body["answer"], body; assert body["provenance"]["corpus"] == "cbam_synthetic", body; print(body["answer"][:300])'
+
+      - name: Container logs
+        if: failure()
+        run: docker logs evalgate || true

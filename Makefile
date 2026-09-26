@@ -90,8 +90,8 @@ report:  ## Regenerate reports/ from the run artifacts
 gate-demo:  ## Prove the gate fails on a deliberately degraded retriever
 	$(PY) -m evalgate.cli gate-demo $(PROFILE) $(ARGS)
 
-serve:  ## Run the FastAPI layer
-	$(RUN) uvicorn evalgate.serve.app:app --host 0.0.0.0 --port 8000
+serve:  ## Run the query UI and POST /query on :8000 (PROFILE picks the stack)
+	EVALGATE_OVERRIDES="$(PROFILE) $(ARGS)" $(RUN) uvicorn evalgate.serve.app:app --host 0.0.0.0 --port 8000
 
 docker:  ## Build the serving image
 	docker build -t evalgate:local .

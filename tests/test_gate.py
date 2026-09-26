@@ -7,7 +7,12 @@ import pytest
 
 from evalgate.config import GateConfig
 from evalgate.gate.baseline import Baseline, BaselineError, freeze, read_baseline, write_baseline
-from evalgate.gate.check import Direction, evaluate_gate
+from evalgate.gate.check import (
+    Direction,
+    LatencyReference,
+    evaluate_gate,
+    load_latency_reference,
+)
 from evalgate.reporting.gate import render, write_json
 from evalgate.runs.store import RunMeta
 
@@ -17,6 +22,7 @@ METRICS: dict[str, Any] = {
     "cost_per_query_usd": 0.0,
     "projected_cost_per_query_usd": 0.010,
     "recall_at_k": 0.85,
+    "composite_components": {"groundedness": 0.8},
 }
 
 
@@ -198,7 +204,8 @@ def test_report_json_is_machine_readable(tmp_path: Path) -> None:
     write_json(path, result, baseline(), meta())
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["passed"] is False
-    assert len(payload["checks"]) == 3
+    assert len(payload["checks"]) == 4, "three headline checks and one per component"
+    assert payload["run_metrics"]["composite_quality"] is None, "no metrics were passed"
     assert payload["baseline_run_id"] == "20260101T000000Z-abc"
 
 
@@ -247,3 +254,70 @@ def test_a_changed_generator_is_still_judged_not_refused() -> None:
         baseline(fingerprint=before), meta(fingerprint=after), metrics(), gate_config()
     )
     assert result.comparable
+
+
+def test_a_component_collapse_fails_even_when_the_composite_holds() -> None:
+    """Citation correctness falling while recall rises reads as no change at all."""
+    weights = {"groundedness": 0.5, "recall_at_k": 0.5}
+    frozen = baseline(
+        metrics=metrics(composite_components={"groundedness": 0.8, "recall_at_k": 0.8})
+    )
+    run = metrics(composite_components={"groundedness": 0.6, "recall_at_k": 1.0})
+    result = evaluate_gate(frozen, meta(), run, gate_config(composite_weights=weights))
+    assert not result.passed
+    assert any(reason.startswith("component: groundedness") for reason in result.blocking)
+    quality = next(check for check in result.checks if check.name == "quality")
+    assert quality.passed
+
+
+def test_a_small_component_drop_passes() -> None:
+    run = metrics(composite_components={"groundedness": 0.75})
+    assert evaluate_gate(baseline(), meta(), run, gate_config(component_drop_max=0.1)).passed
+
+
+def test_a_missing_component_fails() -> None:
+    run = metrics(composite_components={})
+    result = evaluate_gate(baseline(), meta(), run, gate_config())
+    assert not result.passed
+    assert any("missing" in reason for reason in result.blocking)
+
+
+def test_latency_is_compared_to_the_reference_run_when_one_is_given() -> None:
+    """CI measures the base commit on the same runner; hardware drops out."""
+    slow_runner = metrics(p95_latency_s=0.050)
+    reference = LatencyReference(source="base/gate.json", p95_latency_s=0.048)
+    result = evaluate_gate(baseline(), meta(), slow_runner, gate_config(), reference)
+    latency = next(check for check in result.checks if check.name == "p95 latency")
+    assert latency.passed, "5x the baseline, but only 4% over the same runner's base commit"
+    assert latency.compared_to == "the reference run (base/gate.json)"
+
+
+def test_an_unreadable_latency_reference_fails() -> None:
+    reference = LatencyReference(source="base/gate.json", p95_latency_s=None)
+    result = evaluate_gate(baseline(), meta(), metrics(), gate_config(), reference)
+    assert not result.passed
+    assert any("missing" in reason and "p95" in reason for reason in result.blocking)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"run_metrics": {"p95_latency_s": 0.02}},
+        {"checks": [{"metric": "p95_latency_s", "current": 0.02}]},
+        {"p95_latency_s": 0.02},
+    ],
+    ids=["gate.json", "older gate.json", "metrics.json"],
+)
+def test_a_latency_reference_is_read_from_any_run_format(
+    tmp_path: Path, payload: dict[str, Any]
+) -> None:
+    """The base commit's code may predate the current gate.json shape."""
+    import json
+
+    path = tmp_path / "reference.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert load_latency_reference(path).p95_latency_s == 0.02
+
+
+def test_a_missing_latency_reference_file_has_no_value(tmp_path: Path) -> None:
+    assert load_latency_reference(tmp_path / "absent.json").p95_latency_s is None

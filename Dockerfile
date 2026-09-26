@@ -9,7 +9,11 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /usr/local/bin/uv
 
-WORKDIR /build
+# The same path as the runtime stage, not a scratch directory: a virtualenv
+# records its own location in every script's shebang and in the editable
+# install of the project, so a venv built in /build and copied to /app starts
+# with `exec /app/.venv/bin/uvicorn: no such file or directory`.
+WORKDIR /app
 
 # Dependencies first, from the lockfile alone: this layer is cached until the
 # lockfile changes, so an application edit does not reinstall the world.
@@ -34,7 +38,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 WORKDIR /app
 
-COPY --from=build /build/.venv /app/.venv
+COPY --from=build /app/.venv /app/.venv
 COPY src /app/src
 # The config tree, the prompts and the corpus are runtime inputs, not build
 # artifacts: the image serves what these directories contain.

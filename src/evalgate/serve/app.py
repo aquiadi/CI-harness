@@ -8,7 +8,8 @@ describes, and the table would quietly stop being true.
 
 Configuration comes from the same hydra tree. `EVALGATE_OVERRIDES` passes
 overrides in, space separated, so a container can be pointed at a different
-corpus or generator without a rebuild:
+corpus or generator without a rebuild. Unset, it serves the frozen offline
+stack (`+experiment=baseline`), which starts with no model download and no key:
 
     EVALGATE_OVERRIDES="+experiment=live" uvicorn evalgate.serve.app:app
 """
@@ -45,10 +46,13 @@ from evalgate.models.client import build_model_client
 from evalgate.pipeline import RetrievalStack, build_stack
 from evalgate.prompts import load_prompt
 from evalgate.serve.limits import (
+    FORWARDED_HEADER,
     HEADER,
-    FixedWindowLimiter,
+    SlidingWindowLimiter,
+    client_identity,
     configured_key,
     configured_rate_limit,
+    configured_trusted_hops,
     key_matches,
 )
 from evalgate.serve.schemas import (
@@ -64,6 +68,12 @@ from evalgate.serve.schemas import (
 )
 
 OVERRIDES_ENV = "EVALGATE_OVERRIDES"
+# What runs when EVALGATE_OVERRIDES is not set at all: the frozen offline
+# stack, the same default the Makefile uses, because it is the one that starts
+# on a fresh clone. The config tree's own defaults name a local encoder and an
+# API generator, and serving them with neither installed nor recorded failed
+# at startup.
+DEFAULT_OVERRIDES = "+experiment=baseline"
 USD_PER_MTOK = 1_000_000.0
 PROVIDER_EXTRACTIVE = "extractive"
 STATIC_DIR = Path(__file__).parent / "static"
@@ -85,8 +95,12 @@ class Service:
 
 
 def overrides_from_env() -> list[str]:
-    """Hydra overrides passed through the environment."""
-    return os.environ.get(OVERRIDES_ENV, "").split()
+    """Hydra overrides passed through the environment.
+
+    Unset means the offline default; set to an empty string means the config
+    tree's own defaults, for anyone who wants exactly that.
+    """
+    return os.environ.get(OVERRIDES_ENV, DEFAULT_OVERRIDES).split()
 
 
 def build_service(overrides: list[str] | None = None) -> Service:
@@ -191,7 +205,8 @@ def create_app(overrides: list[str] | None = None) -> FastAPI:
 
     api_key = configured_key()
     rate_limit = configured_rate_limit()
-    limiter = FixedWindowLimiter(limit=rate_limit) if rate_limit else None
+    limiter = SlidingWindowLimiter(limit=rate_limit) if rate_limit else None
+    trusted_hops = configured_trusted_hops()
 
     @app.middleware("http")
     async def guard(request: Request, call_next: Any) -> Any:
@@ -209,8 +224,10 @@ def create_app(overrides: list[str] | None = None) -> FastAPI:
                     content={"detail": f"a valid {HEADER} header is required"},
                 )
             if limiter is not None:
-                client = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
-                    request.client.host if request.client else "unknown"
+                client = client_identity(
+                    request.headers.get(FORWARDED_HEADER),
+                    request.client.host if request.client else None,
+                    trusted_hops,
                 )
                 if not limiter.allow(client):
                     return JSONResponse(

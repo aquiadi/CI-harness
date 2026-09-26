@@ -20,6 +20,7 @@ defaults:
   - api: replay
   - gate: default
   - evalsets: default
+  - timing: default
   - ablation: default
   - label: default
   - evalgen: default

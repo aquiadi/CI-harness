@@ -1,3 +1,6 @@
+# data/corpus/raw is deliberately NOT ignored: the Dockerfile copies it so a
+# deployment can serve the real documents once `make corpus` has fetched them,
+# and ignoring it made that COPY fail on every build.
 .git
 .github
 .venv
@@ -10,7 +13,6 @@ runs
 reports
 tests
 docs
-data/corpus/raw
 data/index
 data/corpus/processed
 *.sqlite

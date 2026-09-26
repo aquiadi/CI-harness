@@ -250,3 +250,35 @@ def test_the_real_corpus_has_no_eval_set_until_one_is_built(repo_root: Path) -> 
     cfg = load_config(overrides=["+experiment=live"])
     assert "/eval/cbam/" in str(cfg.evalsets.retrieval_path)
     assert "/eval/cbam_synthetic/" in str(load_config().evalsets.retrieval_path)
+
+
+def test_the_timing_protocol_is_recorded_with_the_run(
+    workspace: DictConfig, repo_root: Path
+) -> None:
+    """Latency timed once and cold is not comparable to a median of warm repeats."""
+    meta = outcome(workspace, repo_root).meta
+    assert meta.timing == {"warmup": True, "repeats": 5, "statistic": "median"}
+
+
+def test_timing_is_outside_the_fingerprint(workspace: DictConfig) -> None:
+    """How precisely latency is measured does not change what the system is."""
+    from evalgate.config import config_hash
+
+    faster = load_config(overrides=[*_overrides_of(workspace), "timing.repeats=1"])
+    assert config_hash(faster) == config_hash(workspace)
+
+
+def _overrides_of(cfg: DictConfig) -> list[str]:
+    return [
+        "corpus.name=fixture",
+        f"corpus.local_dir={cfg.corpus.local_dir}",
+        "embedder=hashed",
+        "generator=extractive",
+        "judge=heuristic",
+        "retriever=bm25",
+        "retriever.k=3",
+        "chunker.target_tokens=96",
+        f"paths.index_dir={cfg.paths.index_dir}",
+        f"evalsets.retrieval_path={cfg.evalsets.retrieval_path}",
+        f"evalsets.answers_path={cfg.evalsets.answers_path}",
+    ]

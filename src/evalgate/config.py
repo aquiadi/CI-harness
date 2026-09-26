@@ -175,6 +175,18 @@ class GateConfig:
     p95_latency_rise_pct: float = 20.0
     cost_per_query_rise_pct: float = 15.0
     composite_weights: dict[str, float] = field(default_factory=dict)
+    # Largest absolute drop any one composite component may take, on its
+    # normalised 0..1 scale.
+    component_drop_max: float = 0.1
+    # Another run's gate.json or metrics.json whose p95 latency replaces the
+    # baseline's in the latency check -- CI measures the base commit on the
+    # same runner and points this at it.
+    latency_reference_path: str | None = None
+    # The paired bootstrap interval reported (never gated) around the delta.
+    bootstrap_resamples: int = 2000
+    confidence: float = 0.95
+    # How many moved questions the gate report lists.
+    items_listed: int = 10
 
 
 @dataclass
@@ -221,6 +233,18 @@ class LabelConfig:
 
 
 @dataclass
+class TimingConfig:
+    """How serving latency is measured.
+
+    Deliberately outside the fingerprint: it changes how precisely latency is
+    measured, not what the system is, and every run records it in its meta.
+    """
+
+    warmup: bool = True
+    repeats: int = 5
+
+
+@dataclass
 class AblationConfig:
     """The sweep matrix for `make ablate`."""
 
@@ -249,6 +273,7 @@ class RootConfig:
     api: ApiConfig = field(default_factory=ApiConfig)
     gate: GateConfig = field(default_factory=GateConfig)
     evalsets: EvalSetsConfig = field(default_factory=EvalSetsConfig)
+    timing: TimingConfig = field(default_factory=TimingConfig)
     ablation: AblationConfig = field(default_factory=AblationConfig)
     label: LabelConfig = field(default_factory=LabelConfig)
     evalgen: EvalGenConfig = field(default_factory=EvalGenConfig)

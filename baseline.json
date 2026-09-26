@@ -75,8 +75,194 @@
       "sparse_weight": 1.0
     }
   },
-  "frozen_at": "2026-09-09T01:45:05Z",
+  "frozen_at": "2026-09-26T19:45:21Z",
   "index_hash": "6af62afaacd720edbfc9776bbfb941cb46b4e884ead3b987229910e83d513eae",
+  "items": {
+    "answers": [
+      {
+        "answer_hash": "072afb767a9666d84d41a851da105e4ddf763e9fd585972b23d95782de57e1fc",
+        "example_id": "seed-a-001",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 4.0
+      },
+      {
+        "answer_hash": "a4914ebd5e3146ffe781cc86160e50e15b91c0d0dcff1190a4d436d6a784c06d",
+        "example_id": "seed-a-002",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 4.0
+      },
+      {
+        "answer_hash": "f0226d3e910e156c41c64f8a888244304db6aa8f737906569adca61f66d72efd",
+        "example_id": "seed-a-003",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "f9eaf093be9c820a9cc57d2df85a4cfde81f1dfae774abfe3340ebb07caf5cb9",
+        "example_id": "seed-a-004",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 3.0,
+        "judge_relevance": 4.0
+      },
+      {
+        "answer_hash": "faa4824affb815e0850b0f759362efd3cb79b27f08bf7012f1787292ea73e8a1",
+        "example_id": "seed-a-005",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 5.0
+      },
+      {
+        "answer_hash": "4fbb2af3c98bbff1f6ae1ae3ac6eac45497b5e7f490ae31a7d92e5b95567ce5b",
+        "example_id": "seed-a-006",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 5.0
+      },
+      {
+        "answer_hash": "3f02bb99fc756d84a325de4c11095b231cf5f6f922252aff0d6929f2a784c1a9",
+        "example_id": "seed-a-007",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 3.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "7f2f26006ec38ffde7002057be35e4f8e40ee21b55f4e3f380d837985e17a429",
+        "example_id": "seed-a-008",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 5.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "d1e44e552f13d21caf5a66f6a6aeda6aa5792a7a387b75ba1304e30e95ecfaf3",
+        "example_id": "seed-a-009",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "648ab794030a72167f690279f3f5ba9a499d53c018756adb595e3b97eee0d0b8",
+        "example_id": "seed-a-010",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 5.0
+      },
+      {
+        "answer_hash": "91bfbdb11254eff4e7fdf0dd8f7d8160ca5b0136507c38eedb594db809c9a165",
+        "example_id": "seed-a-011",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 5.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "1fc34f91ad1e8d29f6691fbf7b3615036eb7b7af63d8f4d2925432498b7957bf",
+        "example_id": "seed-a-012",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 3.0,
+        "judge_relevance": 5.0
+      },
+      {
+        "answer_hash": "9264b58e37f4acc5eb4021358e48b1e11de9f00b7ef6b0299ac908dc0c9898ee",
+        "example_id": "seed-a-013",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 3.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "a2f288c4eead6c9204ef335ebb2ffa93338bd05fc769f350e5d35000cd564dfe",
+        "example_id": "seed-a-014",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 4.0
+      },
+      {
+        "answer_hash": "e2c56e718d30986c348d746837c569e0bb12746c4b38af6515970c8f0958abaf",
+        "example_id": "seed-a-015",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 3.0
+      }
+    ],
+    "retrieval": [
+      {
+        "example_id": "seed-r-001",
+        "first_hit_rank": 6,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-002",
+        "first_hit_rank": 9,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-003",
+        "first_hit_rank": 1,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-004",
+        "first_hit_rank": -1,
+        "recall_at_k": 0.0
+      },
+      {
+        "example_id": "seed-r-005",
+        "first_hit_rank": 3,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-006",
+        "first_hit_rank": 1,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-007",
+        "first_hit_rank": 7,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-008",
+        "first_hit_rank": 1,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-009",
+        "first_hit_rank": 5,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-010",
+        "first_hit_rank": -1,
+        "recall_at_k": 0.0
+      },
+      {
+        "example_id": "seed-r-011",
+        "first_hit_rank": 8,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-012",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-013",
+        "first_hit_rank": 6,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-014",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "seed-r-015",
+        "first_hit_rank": 8,
+        "recall_at_k": 1.0
+      }
+    ]
+  },
   "metrics": {
     "composite_components": {
       "citation_correctness": 1.0,
@@ -107,12 +293,13 @@
     "projected_cost_per_query_usd": 0.0104706,
     "recall_at_k": 0.8666666666666667
   },
-  "notes": "highest composite quality in the 27-configuration sweep; see reports/pareto.md",
+  "notes": "The offline stack: hashed embeddings, the extractive generator and the rule-based judge, chosen so that pull-request CI needs no model download and no key. It is not the highest-scoring configuration; reports/pareto.md has several that score higher with the ml extra. Re-frozen from its recorded run to add per-question records; no number moved.",
   "prompt_hashes": {
     "generator": "9b957d00ba63a2c16c4eedc8863057dff30ad885dae34130de82c65e14eff4bc",
     "judge": "035548ced080f92991f0ed2fe8912ede87c0f81e5ec0d6b61ba1b9bc88c984eb"
   },
   "replayed": false,
   "run_id": "20260909T014505Z-4b8a0ad44f15",
-  "schema_version": 1
+  "schema_version": 2,
+  "timing": {}
 }

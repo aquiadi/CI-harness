@@ -76,3 +76,28 @@ def test_every_target_is_declared_phony(makefile: str) -> None:
         match.group("name") for line in makefile.splitlines() if (match := TARGET.match(line))
     }
     assert targets <= declared, f"not declared .PHONY: {sorted(targets - declared)}"
+
+
+def test_serve_passes_profile_to_the_app(makefile: str) -> None:
+    """`make serve` used to start the config tree's defaults: torch and a recorded API."""
+    recipe = makefile.split("\nserve:", 1)[1].split("\n\n", 1)[0]
+    assert "EVALGATE_OVERRIDES=" in recipe
+    assert "$(PROFILE)" in recipe and "$(ARGS)" in recipe
+
+
+def test_what_the_dockerfile_copies_is_not_ignored(repo_root: Path) -> None:
+    """A COPY of an ignored path fails the build; nothing built the image to notice."""
+    ignored = {
+        line.strip().rstrip("/")
+        for line in (repo_root / ".dockerignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+    copied = [
+        line.split()[1].rstrip("/")
+        for line in (repo_root / "Dockerfile").read_text(encoding="utf-8").splitlines()
+        if line.startswith("COPY ") and "--from" not in line
+    ]
+    for source in copied:
+        parts = source.split("/")
+        prefixes = {"/".join(parts[: index + 1]) for index in range(len(parts))}
+        assert not prefixes & ignored, f"Dockerfile copies {source}, which .dockerignore drops"

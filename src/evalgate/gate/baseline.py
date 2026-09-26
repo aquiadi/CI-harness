@@ -27,7 +27,9 @@ from evalgate.errors import EvalgateError
 from evalgate.hashing import hash_obj
 from evalgate.runs.store import RunMeta
 
-SCHEMA_VERSION = 1
+# 2 added `items`: one record per question, so a gate run can say which
+# questions moved. A version-1 baseline still loads, with no items.
+SCHEMA_VERSION = 2
 
 
 class BaselineError(EvalgateError):
@@ -52,6 +54,9 @@ class Baseline(BaseModel):
     replayed: bool
     metrics: dict[str, Any] = Field(default_factory=dict)
     fingerprint: dict[str, Any] = Field(default_factory=dict)
+    items: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
+    # How the frozen run timed latency; empty for runs timed once, cold.
+    timing: dict[str, Any] = Field(default_factory=dict)
     notes: str | None = None
 
     def mismatches(self, meta: RunMeta) -> list[str]:
@@ -97,7 +102,11 @@ def _judge_name(node: Any) -> str:
 
 
 def freeze(
-    meta: RunMeta, metrics: dict[str, Any], frozen_at: str, notes: str | None = None
+    meta: RunMeta,
+    metrics: dict[str, Any],
+    frozen_at: str,
+    notes: str | None = None,
+    items: dict[str, list[dict[str, Any]]] | None = None,
 ) -> Baseline:
     """Build a baseline from a run."""
     return Baseline(
@@ -113,6 +122,8 @@ def freeze(
         replayed=meta.replayed,
         metrics=dict(metrics),
         fingerprint=dict(meta.fingerprint),
+        items=dict(items or {}),
+        timing=dict(meta.timing),
         notes=notes,
     )
 

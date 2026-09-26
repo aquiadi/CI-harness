@@ -68,9 +68,10 @@ def run(overrides: list[str]) -> int:
         colour = "green" if matched else "red"
         console.print(f"[{colour}]{step.label}: gate {verdict}[/{colour}] (expected {expected})")
         for check in result.checks:
-            delta = "-" if check.delta_pct is None else f"{check.delta_pct:+.2f}%"
-            limit = f"limit {check.threshold_pct:.2f}%"
-            console.print(f"    {check.name:<15} {delta:>10}  {limit}  {check.status}")
+            limit = f"limit {check.limit_label}"
+            console.print(
+                f"    {check.name:<36} {check.delta_label:>10}  {limit:<14}  {check.status}"
+            )
         for reason in result.blocking:
             console.print(f"    blocking: {reason}")
 
