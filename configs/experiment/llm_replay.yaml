@@ -1,0 +1,31 @@
+# @package _global_
+# The pull-request gate with a real generator and a real judge, served from
+# committed cassettes. The offline baseline (+experiment=baseline) cannot see
+# a citation regression -- the extractive generator cites correctly by
+# construction -- so this profile is the one that gates what a model says.
+#
+# It stays on the synthetic corpus and the hashed embedder on purpose: PR CI
+# must not download documents, install torch or fetch model weights, and the
+# cassettes are keyed on the exact prompt, which includes the retrieved text,
+# so retrieval has to be deterministic and dependency-free.
+#
+# Arm it once, with a Groq key, by recording the cassettes and freezing the
+# baseline they reproduce in one pass:
+#   export GROQ_API_KEY=gsk_...
+#   make record
+# then commit tests/cassettes/, baseline.llm.json and the run under runs/.
+# Until baseline.llm.json exists the CI job says it is not armed.
+defaults:
+  - override /chunker: fixed_token
+  - override /retriever: hybrid
+  - override /embedder: hashed
+  - override /generator: groq
+  - override /judge: groq
+  - override /api: replay
+
+retriever:
+  k: 10
+gate:
+  baseline_path: ${paths.root}/baseline.llm.json
+probes:
+  contrast_generator: groq_contrast

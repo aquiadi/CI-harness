@@ -42,8 +42,8 @@ class ReplayClient:
             raise CassetteMissError(
                 f"no cassette for {request.purpose} call to {request.model} "
                 f"(key {request.cache_key()[:16]}) in {self.store.path}. "
-                "Re-record with `make eval ARGS=api=record` and commit the result; "
-                "a miss usually means a prompt, model or config change."
+                "Re-record with `make record` and commit tests/cassettes/ with the "
+                "baseline it freezes; a miss usually means a prompt, model or config change."
             )
         return recorded
 

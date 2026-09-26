@@ -21,3 +21,8 @@ probes:
   # The judge's own model, so the probe measures self-preference rather than
   # a difference between two models that are both not the judge.
   contrast_generator: groq_contrast
+
+gate:
+  # Its own baseline: gating this stack against the offline baseline.json
+  # would compare two different judges, which the gate refuses anyway.
+  baseline_path: ${paths.root}/baseline.groq.json

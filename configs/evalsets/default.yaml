@@ -1,8 +1,14 @@
-retrieval_path: ${paths.eval_dir}/retrieval.jsonl
-answers_path: ${paths.eval_dir}/answers.jsonl
-human_labels_path: ${paths.eval_dir}/human_labels.jsonl
+# Each corpus has its own eval set, because gold evidence is a verbatim span of
+# the corpus it was copied from (D-0015): the synthetic corpus's questions
+# cannot be scored against the real documents. The runner refuses an example
+# whose corpus or spans do not match the corpus being measured.
+retrieval_path: ${paths.eval_dir}/${corpus.name}/retrieval.jsonl
+answers_path: ${paths.eval_dir}/${corpus.name}/answers.jsonl
+human_labels_path: ${paths.eval_dir}/${corpus.name}/human_labels.jsonl
 # Ratings authored alongside the seed answers. Not independent human labels;
 # the calibration report reads them separately and says so. See D-0019.
-seed_labels_path: ${paths.eval_dir}/seed_labels.jsonl
-judge_scores_path: ${paths.eval_dir}/judge_scores.jsonl
+seed_labels_path: ${paths.eval_dir}/${corpus.name}/seed_labels.jsonl
+# Hand-written seed files that `make seed` materialises into the paths above.
+seeds_dir: ${paths.eval_dir}/${corpus.name}/seeds
+judge_scores_path: ${paths.eval_dir}/${corpus.name}/judge_scores.jsonl
 limit: null

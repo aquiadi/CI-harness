@@ -11,9 +11,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from scripts.fetch_corpus import _reuse_existing, body_rejection
+from scripts.fetch_corpus import _reuse_existing, body_rejection, main, refusal
 
-from evalgate.config import SourceDocument
+from evalgate.config import CorpusConfig, SourceDocument
+from evalgate.corpus.manifest import CorpusManifest
 
 PDF = b"%PDF-1.7\nreal document bytes"
 
@@ -80,3 +81,45 @@ def test_a_cached_real_pdf_is_still_reused(tmp_path: Path) -> None:
 @pytest.mark.parametrize("body", [b"", b"<!DOCTYPE html>", b'{"error": "not found"}'])
 def test_nothing_that_is_not_a_pdf_reaches_the_manifest(body: bytes) -> None:
     assert body_rejection(body, "", "pdf") is not None
+
+
+def _manifest(corpus: str) -> CorpusManifest:
+    return CorpusManifest(corpus=corpus, generated_at="2026-01-01T00:00:00Z", entries=[])
+
+
+def test_a_corpus_with_nothing_to_fetch_is_refused() -> None:
+    """The default profile's corpus has no sources; fetching it used to empty the pin."""
+    synthetic = CorpusConfig(name="cbam_synthetic", sources=[])
+    reason = refusal(synthetic, _manifest("cbam"))
+    assert reason is not None and "no sources" in reason
+    assert "corpus=cbam" in reason, "the refusal must say how to fetch the real corpus"
+
+
+def test_another_corpus_manifest_is_not_overwritten() -> None:
+    other = CorpusConfig(name="other", sources=[source()])
+    reason = refusal(other, _manifest("cbam"))
+    assert reason is not None and "'cbam'" in reason
+
+
+def test_the_real_corpus_may_refresh_its_own_manifest() -> None:
+    real = CorpusConfig(name="cbam", sources=[source()])
+    assert refusal(real, _manifest("cbam")) is None
+    assert refusal(real, None) is None
+
+
+def test_the_default_profile_leaves_the_committed_manifest_untouched(
+    tmp_path: Path, repo_root: Path
+) -> None:
+    """End to end: `make corpus` with no PROFILE must not write anything."""
+    manifest = tmp_path / "manifest.json"
+    original = (repo_root / "data" / "corpus" / "manifest.json").read_text(encoding="utf-8")
+    manifest.write_text(original, encoding="utf-8")
+    code = main(
+        [
+            "+experiment=baseline",
+            f"paths.corpus_manifest_path={manifest}",
+            f"paths.corpus_raw_dir={tmp_path / 'raw'}",
+        ]
+    )
+    assert code != 0
+    assert manifest.read_text(encoding="utf-8") == original

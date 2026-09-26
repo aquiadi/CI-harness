@@ -3,14 +3,26 @@ name: nightly live evaluation
 # Pull-request CI is deterministic, offline and free; it can only catch a
 # regression that the committed cassettes and the offline stack can see. This
 # job is the other half: once a day it runs the real system -- real documents,
-# real embeddings, real API calls -- against its own frozen baseline, and opens
-# an issue when the gate fails. Drift that only shows up against a live model
-# is found here, at a cost of one run a day rather than one per push.
+# real embeddings, real API calls -- against its own frozen baseline, and keeps
+# one issue open while the gate fails. Drift that only shows up against a live
+# model is found here, at a cost of one run a day rather than one per push.
+#
+# Arming it takes three things, each deliberate: an accepted eval set for the
+# real corpus under data/eval/cbam/, a frozen live baseline (run this workflow
+# by hand with mode=freeze, review the uploaded baseline, commit it), and the
+# API key secret for the chosen vendor. Until then it fails and says which one
+# is missing -- a live gate with nothing to compare against must not pass.
 
 on:
   schedule:
     - cron: "17 4 * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "gate: compare against the frozen live baseline. freeze: measure and upload a candidate baseline for review."
+        type: choice
+        options: [gate, freeze]
+        default: gate
 
 permissions:
   contents: read
@@ -18,11 +30,20 @@ permissions:
 
 jobs:
   live:
-    name: live run against baseline.live.json
+    name: live run against its frozen baseline
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
+      # Which live stack to measure: +experiment=live (Anthropic) or
+      # +experiment=live_groq (Groq's free tier). A repository variable, so
+      # switching vendor is a settings change rather than a workflow edit.
+      # Passed as PROFILE and never as ARGS: the Makefile sets its own default
+      # PROFILE, and a second +experiment on the command line is a hydra
+      # composition error -- which is how this job used to fail every night.
+      PROFILE: ${{ vars.EVALGATE_LIVE_PROFILE || '+experiment=live' }}
+      MODE: ${{ inputs.mode || 'gate' }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,40 +63,89 @@ jobs:
         run: make corpus
 
       - name: Run the live evaluation
-        id: live
-        run: make eval ARGS="+experiment=live"
+        if: env.MODE == 'gate'
+        run: make eval
+
+      - name: Freeze a candidate live baseline
+        if: env.MODE == 'freeze'
+        run: |
+          make freeze
+          mkdir -p candidate
+          git ls-files --modified --others --exclude-standard -- 'baseline.*.json' runs/ \
+            | xargs -r -I{} cp --parents {} candidate/
 
       - name: Upload the gate report
-        if: always()
+        if: always() && env.MODE == 'gate'
         uses: actions/upload-artifact@v4
         with:
           name: nightly-gate-report
+          if-no-files-found: ignore
           path: |
             reports/gate.md
             reports/gate.json
             data/corpus/manifest.json
 
-      - name: Open an issue when the gate fails
-        if: failure()
+      # A baseline is never committed by a workflow. It is uploaded for a
+      # person to review and commit, because moving a baseline is how a
+      # regression becomes permanent.
+      - name: Upload the candidate baseline for review
+        if: env.MODE == 'freeze'
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-live-baseline
+          path: candidate/
+
+      # One open issue per failure streak, updated in place, rather than a new
+      # issue every night: a notification a day for the same cause is noise,
+      # and noise is what gets a gate muted.
+      - name: Open or update the failure issue
+        if: failure() && env.MODE == 'gate'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            let body = 'The nightly live evaluation failed before it produced a gate report. ';
-            body += 'See the workflow run for details.';
+            const title = 'Nightly live evaluation failing';
+            let report = 'The nightly live evaluation failed before it produced a gate report. ';
+            report += 'See the workflow run for the step that failed.';
             try {
-              body = fs.readFileSync('reports/gate.md', 'utf8');
+              report = fs.readFileSync('reports/gate.md', 'utf8');
             } catch (error) {
               core.info('no gate report on disk: ' + error.message);
             }
             const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
               `/actions/runs/${context.runId}`;
+            const today = new Date().toISOString().slice(0, 10);
+            const body = `${report}\n\nProfile: \`${process.env.PROFILE}\`\n\n` +
+              `Last failed ${today}: [workflow run](${url})`;
             const { owner, repo } = context.repo;
-            const title = `Nightly live evaluation failed (${new Date().toISOString().slice(0, 10)})`;
-            await github.rest.issues.create({
-              owner,
-              repo,
-              title,
-              labels: ['quality-gate'],
-              body: `${body}\n\n[Workflow run](${url})`,
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: 'quality-gate',
             });
+            const existing = open.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.update({ owner, repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ owner, repo, title, labels: ['quality-gate'], body });
+            }
+
+      - name: Close the failure issue once the gate passes again
+        if: success() && env.MODE == 'gate'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Nightly live evaluation failing';
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            const { owner, repo } = context.repo;
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: 'quality-gate',
+            });
+            for (const issue of open.filter((item) => item.title === title)) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issue.number,
+                body: `Passing again: [workflow run](${url})`,
+              });
+              await github.rest.issues.update({
+                owner, repo, issue_number: issue.number, state: 'closed', state_reason: 'completed',
+              });
+            }

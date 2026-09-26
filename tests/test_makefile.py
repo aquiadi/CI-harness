@@ -20,7 +20,7 @@ INVOCATION = re.compile(r"^\t.*(?:evalgate\.cli\s+[\w-]+|scripts/\S+\.py)")
 # A target, not a variable assignment: `RUN := $(UV) run` must not look like one.
 TARGET = re.compile(r"^(?P<name>[a-zA-Z][\w-]*)\s*:(?!=)")
 # `record` pins its own experiment on purpose: it exists to record the cassettes
-# for the live configuration, so taking PROFILE would defeat the point.
+# the LLM replay gate plays back, so taking PROFILE would record the wrong ones.
 PINS_ITS_OWN_PROFILE = frozenset({"record"})
 
 

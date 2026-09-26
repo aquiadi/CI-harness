@@ -6,6 +6,7 @@ import pytest
 from omegaconf import DictConfig
 
 from evalgate.config import load_config
+from evalgate.evalsets.binding import EvalSetCorpusError
 from evalgate.evalsets.schemas import AnswerExample, RetrievalExample, ReviewStatus
 from evalgate.evalsets.store import write_jsonl
 from evalgate.evaluation.runner import TASK_ANSWER, TASK_RETRIEVAL, RunOutcome, evaluate
@@ -34,8 +35,10 @@ def workspace(tmp_path: Path, fixture_corpus_dir: Path) -> DictConfig:
             RetrievalExample(
                 id="r-2",
                 question="Nothing in this corpus answers this question at all",
-                gold_spans=["a span that does not appear anywhere"],
-                gold_doc_id="fixture_reg_a",
+                # Present in the corpus -- an absent span is refused outright --
+                # but in a document this question does not retrieve.
+                gold_spans=["Electricity is reported in megawatt hours"],
+                gold_doc_id="fixture_guidance",
                 corpus="fixture",
                 corpus_hash="h",
                 status=ReviewStatus.ACCEPTED,
@@ -107,7 +110,7 @@ def test_only_accepted_retrieval_slots_are_scored(workspace: DictConfig, repo_ro
     assert scored == {"r-1", "r-2"}
 
 
-def test_an_unanswerable_slot_scores_zero_not_missing(
+def test_a_slot_whose_evidence_is_not_retrieved_scores_zero_not_missing(
     workspace: DictConfig, repo_root: Path
 ) -> None:
     result = outcome(workspace, repo_root)
@@ -187,3 +190,63 @@ def test_the_run_is_reproducible(workspace: DictConfig, repo_root: Path) -> None
     assert first.metrics["composite_quality"] == second.metrics["composite_quality"]
     assert first.metrics["recall_at_k"] == second.metrics["recall_at_k"]
     assert list(first.rows["answer"].dropna()) == list(second.rows["answer"].dropna())
+
+
+def _rewrite(path: Path, record: RetrievalExample | AnswerExample) -> None:
+    write_jsonl(path, [record])
+
+
+def test_an_eval_set_for_another_corpus_is_refused(
+    workspace: DictConfig, repo_root: Path, tmp_path: Path
+) -> None:
+    """The synthetic questions scored against the real documents read as a bad retriever."""
+    _rewrite(
+        tmp_path / "retrieval.jsonl",
+        RetrievalExample(
+            id="r-foreign",
+            question="When must the quarterly report be submitted?",
+            gold_spans=["no later than one month after the end of that quarter"],
+            gold_doc_id="fixture_reg_a",
+            corpus="cbam_synthetic",
+            corpus_hash="h",
+            status=ReviewStatus.ACCEPTED,
+        ),
+    )
+    with pytest.raises(EvalSetCorpusError, match="cbam_synthetic"):
+        outcome(workspace, repo_root)
+
+
+def test_a_gold_span_absent_from_the_corpus_is_refused(
+    workspace: DictConfig, repo_root: Path, tmp_path: Path
+) -> None:
+    """Otherwise it is a slot no retriever can ever satisfy, scored as a zero."""
+    _rewrite(
+        tmp_path / "retrieval.jsonl",
+        RetrievalExample(
+            id="r-absent",
+            question="Anything?",
+            gold_spans=["a span that does not appear anywhere"],
+            gold_doc_id="fixture_reg_a",
+            corpus="fixture",
+            corpus_hash="h",
+            status=ReviewStatus.ACCEPTED,
+        ),
+    )
+    with pytest.raises(EvalSetCorpusError, match="r-absent"):
+        outcome(workspace, repo_root)
+
+
+def test_a_corpus_with_no_accepted_questions_is_refused(
+    workspace: DictConfig, repo_root: Path, tmp_path: Path
+) -> None:
+    """A run over nothing has no metrics; say so before measuring, not after."""
+    write_jsonl(tmp_path / "retrieval.jsonl", [])
+    with pytest.raises(EvalSetCorpusError, match="no accepted retrieval examples"):
+        outcome(workspace, repo_root)
+
+
+def test_the_real_corpus_has_no_eval_set_until_one_is_built(repo_root: Path) -> None:
+    """The live profiles point at data/eval/cbam/, which must not borrow the synthetic set."""
+    cfg = load_config(overrides=["+experiment=live"])
+    assert "/eval/cbam/" in str(cfg.evalsets.retrieval_path)
+    assert "/eval/cbam_synthetic/" in str(load_config().evalsets.retrieval_path)

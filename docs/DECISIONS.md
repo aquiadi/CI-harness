@@ -1109,3 +1109,65 @@ determined adversary, and the tests say so by name rather than implying more.
 Shared-state limiting belongs in front of the app. The UI is three static files
 with no build step and no framework, which keeps the image small and the
 dependency surface at zero but means it stays deliberately plain.
+
+## D-0049 -- The nightly passes PROFILE, and a corpus with nothing to fetch is refused
+
+2026-09-26, post-M6
+
+The nightly job ran `make eval ARGS="+experiment=live"`. The Makefile already
+passes `+experiment=baseline` as PROFILE, so hydra saw two experiments and
+refused to compose -- every night, before one measurement was made. It now
+sets `PROFILE` in the job environment (the Makefile's `?=` picks it up), reads
+it from the repository variable `EVALGATE_LIVE_PROFILE` so the vendor can be
+switched to `+experiment=live_groq` without editing the workflow, keeps one
+open issue per failure streak instead of opening a new one nightly, closes it
+when the gate passes again, and has a `mode=freeze` dispatch that measures a
+candidate live baseline and uploads it for a person to review and commit.
+
+The same job ran `make corpus` under the default profile. The default corpus is
+the synthetic one, which has no sources, and the fetcher wrote an empty
+manifest under its name over the committed pin of the real documents.
+`scripts/fetch_corpus.py` now refuses a corpus with no sources, and refuses to
+overwrite a manifest that pins a different corpus.
+
+`tests/test_workflows.py` runs what the workflows would run as far as that is
+possible offline: every PROFILE a workflow can use composes, no step passes an
+experiment through ARGS, every `make` target exists, and every experiment has
+its own baseline file -- `+experiment=groq` shared `baseline.json` with the
+offline stack, which would have gated one system against another.
+
+Cost: the nightly still cannot pass until three things exist that only a
+person can supply -- an accepted real-corpus eval set (D-0050), a frozen live
+baseline, and an API key secret. It fails until then and says which is
+missing; a live gate with nothing to compare against must not go green.
+
+## D-0050 -- An eval set is bound to the corpus it was written for
+
+2026-09-26, post-M6
+
+Eval sets now live under `data/eval/<corpus>/`, and before measuring anything
+the runner refuses an example that names another corpus, a gold span the
+corpus does not contain, and an eval set with no accepted retrieval examples or
+no answer examples (`evalgate.evalsets.binding`).
+
+Why: gold evidence is a verbatim span (D-0015), so an eval set means something
+only against the corpus it was copied from. The live profiles select
+`corpus=cbam` but read the one eval set there was, written against the
+synthetic documents. Nothing would have failed: the spans never match, recall
+reads as near zero, and that zero is indistinguishable from a bad retriever.
+The evalset hash could not catch it -- the questions were the same questions,
+asked of the wrong documents. The README's claim that switching to the real
+corpus was "a matter of re-running under `corpus=cbam`" was false for the same
+reason; it needs its own eval set, drafted with `make gen-eval` and accepted
+with `make label`.
+
+Checking span presence rather than the stamped `corpus_hash` is deliberate: a
+hash mismatch after an edit to one synthetic document would refuse the whole
+set, whereas a span check refuses exactly the examples whose evidence moved.
+The runner test that modelled an "unanswerable" retrieval slot with a span
+found nowhere now uses a span that exists but is not retrieved; a retrieval
+slot whose evidence is absent is a data error, not a hard question.
+
+Cost: every existing path under `data/eval/` moved one directory down, and a
+corpus with no accepted questions now fails at the start of a run instead of
+producing metrics. That second part is the point.

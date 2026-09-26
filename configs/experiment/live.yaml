@@ -4,8 +4,14 @@
 # workflow measures against `baseline.live.json`.
 #
 # It needs `make corpus` to have fetched the sources, `make ml` for the local
-# encoder, and ANTHROPIC_API_KEY. Freeze its baseline once, deliberately:
-#   make freeze ARGS="+experiment=live gate.baseline_path=baseline.live.json"
+# encoder, ANTHROPIC_API_KEY, and an accepted eval set for the real corpus
+# under data/eval/cbam/ (the synthetic corpus's questions cannot be scored
+# against the real documents, and the runner refuses to try). Freeze its
+# baseline once, deliberately:
+#   make freeze PROFILE="+experiment=live"
+#
+# PROFILE, not ARGS: the Makefile's default PROFILE is +experiment=baseline,
+# and a second +experiment in ARGS is a composition error.
 defaults:
   - override /corpus: cbam
   - override /chunker: recursive_structural

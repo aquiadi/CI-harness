@@ -36,6 +36,7 @@ from evalgate.config import (
     typed_node,
 )
 from evalgate.corpus.manifest import utc_now_iso
+from evalgate.evalsets.binding import check_bound
 from evalgate.evalsets.schemas import AnswerExample, JudgeScore, RetrievalExample, ReviewStatus
 from evalgate.evalsets.store import read_jsonl
 from evalgate.evaluation.metrics import (
@@ -241,16 +242,19 @@ def evaluate(
     pricing = typed_node(cfg, "pricing", PricingConfig)
     k = int(cfg.retriever.k)
 
+    retrieval_path = resolve_path(cfg, "evalsets.retrieval_path")
+    answers_path = resolve_path(cfg, "evalsets.answers_path")
     retrieval_examples = [
         example
-        for example in read_jsonl(resolve_path(cfg, "evalsets.retrieval_path"), RetrievalExample)
+        for example in read_jsonl(retrieval_path, RetrievalExample)
         if example.status is ReviewStatus.ACCEPTED
     ]
-    answer_examples = read_jsonl(resolve_path(cfg, "evalsets.answers_path"), AnswerExample)
+    answer_examples = read_jsonl(answers_path, AnswerExample)
     limit = cfg.evalsets.get("limit")
     if limit:
         retrieval_examples = retrieval_examples[: int(limit)]
         answer_examples = answer_examples[: int(limit)]
+    check_bound(stack.corpus, retrieval_examples, answer_examples, retrieval_path, answers_path)
 
     rows = pd.DataFrame(
         _retrieval_rows(stack, retrieval_examples, k)

@@ -2,9 +2,13 @@
 """Download the pinned corpus and write its SHA256 manifest.
 
 Usage:
-    make corpus
-    make corpus ARGS="corpus.refetch=true"
+    make corpus PROFILE="+experiment=live"
+    make corpus PROFILE="+experiment=live" ARGS="corpus.refetch=true"
     uv run python scripts/fetch_corpus.py corpus=cbam
+
+Only a corpus with sources can be fetched. The default profile selects the
+synthetic corpus, which has none, and is refused rather than allowed to
+rewrite the committed manifest.
 
 The PDFs land in ``data/corpus/raw/`` and are gitignored. The manifest is
 committed. A URL that 404s, times out or is blocked by a network policy is
@@ -187,15 +191,43 @@ def fetch_one(
     return _entry(source, FetchStatus.ERROR, http_status=last_status, error=last_error)
 
 
+def refusal(corpus: CorpusConfig, prior: CorpusManifest | None) -> str | None:
+    """Why fetching this corpus must not touch the manifest, or None if it may.
+
+    The manifest is the committed pin of the real documents. Rewriting it from
+    a corpus with nothing to fetch -- the synthetic one, which the default
+    profile selects -- replaced that pin with an empty manifest under another
+    corpus's name, and nothing downstream noticed until the documents were
+    needed.
+    """
+    if not corpus.sources:
+        return (
+            f"corpus {corpus.name!r} has no sources to fetch; it is read from a local "
+            "directory. The real documents are corpus=cbam: "
+            'make corpus PROFILE="+experiment=live"'
+        )
+    if prior is not None and prior.corpus != corpus.name:
+        return (
+            f"the manifest pins corpus {prior.corpus!r}, not {corpus.name!r}; refusing to "
+            "overwrite another corpus's pin. Point paths.corpus_manifest_path elsewhere."
+        )
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     """Fetch every configured source and rewrite the manifest."""
     cfg = load_config(overrides=list(argv if argv is not None else sys.argv[1:]))
     corpus = typed_node(cfg, "corpus", CorpusConfig)
     dest_dir = resolve_path(cfg, "paths.corpus_raw_dir")
     manifest_path = resolve_path(cfg, "paths.corpus_manifest_path")
-    dest_dir.mkdir(parents=True, exist_ok=True)
 
     prior = load_manifest_if_present(manifest_path)
+    reason = refusal(corpus, prior)
+    if reason is not None:
+        console.print(f"[red]error:[/red] {reason}")
+        return 2
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
     entries: list[ManifestEntry] = []
 
     headers = {"User-Agent": corpus.user_agent, "Accept": "*/*"}

@@ -56,7 +56,9 @@ def test_placeholders_fall_back_when_no_gold_chunk_resolved() -> None:
 
 
 def test_seed_answers_cite_chunks_that_exist_except_where_intended(repo_root: Path) -> None:
-    examples = read_jsonl(repo_root / "data" / "eval" / "answers.jsonl", AnswerExample)
+    examples = read_jsonl(
+        repo_root / "data" / "eval" / "cbam_synthetic" / "answers.jsonl", AnswerExample
+    )
     assert len(examples) >= 15
     deliberate = {"seed-a-013"}  # written to cite a nonexistent chunk
     for example in examples:
@@ -67,7 +69,9 @@ def test_seed_answers_cite_chunks_that_exist_except_where_intended(repo_root: Pa
 
 
 def test_seed_answers_gold_spans_are_real(repo_root: Path, chunks: list[Chunk]) -> None:
-    examples = read_jsonl(repo_root / "data" / "eval" / "answers.jsonl", AnswerExample)
+    examples = read_jsonl(
+        repo_root / "data" / "eval" / "cbam_synthetic" / "answers.jsonl", AnswerExample
+    )
     text_by_doc: dict[str, str] = {}
     for chunk in chunks:
         text_by_doc[chunk.doc_id] = text_by_doc.get(chunk.doc_id, "") + "\n" + chunk.text
@@ -79,10 +83,14 @@ def test_seed_answers_gold_spans_are_real(repo_root: Path, chunks: list[Chunk]) 
 
 def test_seed_labels_are_attributed_and_pinned_to_their_answer(repo_root: Path) -> None:
     """Seed labels are not independent human labels and must say whose they are."""
-    labels = read_jsonl(repo_root / "data" / "eval" / "seed_labels.jsonl", HumanLabel)
+    labels = read_jsonl(
+        repo_root / "data" / "eval" / "cbam_synthetic" / "seed_labels.jsonl", HumanLabel
+    )
     answers = {
         example.id: example
-        for example in read_jsonl(repo_root / "data" / "eval" / "answers.jsonl", AnswerExample)
+        for example in read_jsonl(
+            repo_root / "data" / "eval" / "cbam_synthetic" / "answers.jsonl", AnswerExample
+        )
     }
     assert labels
     for record in labels:
@@ -94,8 +102,11 @@ def test_seeding_is_byte_idempotent(repo_root: Path) -> None:
     """Re-seeding must not dirty the working tree, so no wall-clock anywhere."""
     files = ["answers.jsonl", "retrieval.jsonl", "seed_labels.jsonl"]
     before = {
-        name: (repo_root / "data" / "eval" / name).read_text(encoding="utf-8") for name in files
+        name: (repo_root / "data" / "eval" / "cbam_synthetic" / name).read_text(encoding="utf-8")
+        for name in files
     }
     assert main([]) == 0
     for name in files:
-        assert (repo_root / "data" / "eval" / name).read_text(encoding="utf-8") == before[name]
+        assert (repo_root / "data" / "eval" / "cbam_synthetic" / name).read_text(
+            encoding="utf-8"
+        ) == before[name]

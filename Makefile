@@ -54,10 +54,10 @@ gen-eval:  ## Draft retrieval eval candidates with a model, for review
 seed:  ## Materialise the hand-written seed eval sets into data/eval/
 	$(PY) scripts/seed_evalsets.py $(PROFILE) $(ARGS)
 
-record:  ## Re-record the API cassettes that replay-mode CI plays back
-	$(PY) -m evalgate.cli eval +experiment=live api=record $(ARGS)
+record:  ## Record the LLM cassettes and freeze baseline.llm.json in one pass (GROQ_API_KEY)
+	$(PY) -m evalgate.cli freeze +experiment=llm_replay api=groq_record $(ARGS)
 
-corpus:  ## Download pinned source documents and write the SHA256 manifest
+corpus:  ## Fetch the real documents and pin them by SHA256 (PROFILE="+experiment=live")
 	$(PY) scripts/fetch_corpus.py $(PROFILE) $(ARGS)
 
 ingest:  ## PDF -> text -> chunks

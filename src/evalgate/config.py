@@ -185,6 +185,7 @@ class EvalSetsConfig:
     answers_path: str = MISSING
     human_labels_path: str = MISSING
     seed_labels_path: str = MISSING
+    seeds_dir: str = MISSING
     judge_scores_path: str = MISSING
     limit: int | None = None
 

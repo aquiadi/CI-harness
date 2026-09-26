@@ -1,0 +1,28 @@
+# @package _global_
+# The live system on Groq's free tier: the real EU documents, local bge
+# embeddings, a Groq generator and a Groq judge. The nightly workflow runs
+# this instead of +experiment=live when the repository variable
+# EVALGATE_LIVE_PROFILE is set to "+experiment=live_groq" and the GROQ_API_KEY
+# secret is present.
+#
+# Same prerequisites as +experiment=live -- the fetched corpus, `make ml`, and
+# an accepted real-corpus eval set -- and its own baseline, frozen once:
+#   make freeze PROFILE="+experiment=live_groq"
+#
+# One nightly pass is roughly one sweep cell of the free tier's daily token
+# budget (D-0046), which is affordable once a day and not more often.
+defaults:
+  - override /corpus: cbam
+  - override /chunker: recursive_structural
+  - override /retriever: hybrid
+  - override /embedder: local
+  - override /generator: groq
+  - override /judge: groq
+  - override /api: groq
+
+retriever:
+  k: 8
+gate:
+  baseline_path: ${paths.root}/baseline.live_groq.json
+probes:
+  contrast_generator: groq_contrast

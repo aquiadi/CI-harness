@@ -67,7 +67,9 @@ def test_seeded_retrieval_slots_are_answerable_from_their_gold_document(
     for piece in chunks:
         by_document[piece.doc_id] = by_document.get(piece.doc_id, "") + "\n" + piece.text
 
-    examples = read_jsonl(repo_root / "data" / "eval" / "retrieval.jsonl", RetrievalExample)
+    examples = read_jsonl(
+        repo_root / "data" / "eval" / "cbam_synthetic" / "retrieval.jsonl", RetrievalExample
+    )
     assert len(examples) >= 15
     for example in examples:
         assert example.gold_doc_id in by_document, example.id
@@ -76,7 +78,9 @@ def test_seeded_retrieval_slots_are_answerable_from_their_gold_document(
 
 
 def test_seed_slots_are_accepted_and_the_rest_are_drafts(repo_root: Path) -> None:
-    examples = read_jsonl(repo_root / "data" / "eval" / "retrieval.jsonl", RetrievalExample)
+    examples = read_jsonl(
+        repo_root / "data" / "eval" / "cbam_synthetic" / "retrieval.jsonl", RetrievalExample
+    )
     for example in examples:
         if example.id.startswith("seed-"):
             assert example.status is ReviewStatus.ACCEPTED, example.id

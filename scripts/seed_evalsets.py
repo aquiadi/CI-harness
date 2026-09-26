@@ -3,7 +3,7 @@
 
     make seed
 
-Reads data/eval/seeds/*.yaml, verifies that every gold span really occurs in
+Reads data/eval/cbam_synthetic/seeds/*.yaml, verifies that every gold span really occurs in
 the document it names, resolves the chunk ids that hold each span under the
 reference chunker, substitutes citation placeholders in the seed answers, and
 merges the result into the eval sets without disturbing records that came from
@@ -44,7 +44,6 @@ from evalgate.pipeline import build_chunker, build_tokenizer, chunk_corpus, load
 console = Console()
 
 SEED_LABELLER = "seed-author"
-SEED_LABELS_FILE = "seed_labels.jsonl"
 PLACEHOLDER_GOLD = "${gold}"
 PLACEHOLDER_WRONG = "${wrong}"
 PLACEHOLDER_MISSING = "${missing}"
@@ -194,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
         f"corpus {corpus.name} ({corpus.size} documents, {len(chunks)} chunks under {chunker.name})"
     )
 
-    seeds_dir = resolve_path(cfg, "paths.eval_dir") / "seeds"
+    seeds_dir = resolve_path(cfg, "evalsets.seeds_dir")
     retrieval_seed = _load_yaml(seeds_dir / "retrieval_seed.yaml")
     answers_seed = _load_yaml(seeds_dir / "answers_seed.yaml")
 
@@ -205,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
 
     retrieval_path = resolve_path(cfg, "evalsets.retrieval_path")
     answers_path = resolve_path(cfg, "evalsets.answers_path")
-    labels_path = resolve_path(cfg, "paths.eval_dir") / SEED_LABELS_FILE
+    labels_path = resolve_path(cfg, "evalsets.seed_labels_path")
 
     write_jsonl(retrieval_path, _merge(read_jsonl(retrieval_path, RetrievalExample), retrieval))
     write_jsonl(answers_path, _merge(read_jsonl(answers_path, AnswerExample), answers))
