@@ -18,6 +18,8 @@ from evalgate.hashing import hash_obj, sha256_file
 from evalgate.ingest.documents import Document, IngestError, load_document
 
 LOCAL_SUFFIXES = (".md", ".txt")
+# The default profile's corpus has nothing to fetch; the real one is here.
+FETCH_COMMAND = "make corpus PROFILE=+experiment=live"
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,13 +74,13 @@ def load_manifest_corpus(name: str, raw_dir: Path, manifest: CorpusManifest) -> 
         path = raw_dir / entry.filename
         if not path.is_file():
             raise IngestError(
-                f"manifest lists {entry.id} as present but {path} is missing; run `make corpus`"
+                f"manifest lists {entry.id} as present but {path} is missing; run `{FETCH_COMMAND}`"
             )
         documents.append(load_document(path, entry.id, entry.title))
     if not documents:
         raise IngestError(
             "the manifest records no successfully fetched documents. "
-            "Run `make corpus` on a network that can reach the source URLs, "
+            f"Run `{FETCH_COMMAND}` on a network that can reach the source URLs, "
             "or point corpus.local_dir at a local document set."
         )
     return LoadedCorpus(name=name, documents=documents, corpus_hash=manifest.corpus_hash())
@@ -96,5 +98,7 @@ def load_corpus(
         return load_local_corpus(name, local_dir, exclude)
     manifest = load_manifest_if_present(manifest_path)
     if manifest is None:
-        raise IngestError(f"no corpus manifest at {manifest_path}; run `make corpus`")
+        raise IngestError(
+            f"no corpus manifest at {manifest_path}; run `make corpus PROFILE=+experiment=live`"
+        )
     return load_manifest_corpus(name, raw_dir, manifest)

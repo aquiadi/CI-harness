@@ -135,5 +135,7 @@ def test_a_manifest_that_promises_a_file_that_is_not_there_is_refused(tmp_path: 
         tmp_path / "manifest.json",
         [manifest_entry("reg_a", "ok", sha256="0" * 64, bytes=1024)],
     )
-    with pytest.raises(IngestError, match="is missing; run `make corpus`"):
+    with pytest.raises(
+        IngestError, match=r"is missing; run `make corpus PROFILE=\+experiment=live`"
+    ):
         load_corpus("cbam", tmp_path / "raw", manifest_path)

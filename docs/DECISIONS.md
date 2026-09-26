@@ -1057,8 +1057,9 @@ refuses to place runs with different fingerprints in one table.
 
 2026-09-10, post-M6
 
-`CLAUDE.md` is now `docs/PRINCIPLES.md`. The content is unchanged: it is the
-repository's constitution and every invariant in it still holds.
+The constitution, previously a root-level file named after one authoring
+tool's convention, is now `docs/PRINCIPLES.md`. The content is unchanged: it is
+the repository's constitution and every invariant in it still holds.
 
 Why: the filename was a convention of one particular authoring tool, not a
 property of the project. A file whose name announces which assistant read it
@@ -1395,3 +1396,31 @@ fingerprint only when set, so every v1 record still matches.
 
 Cost: a third judgments file to keep in step with the answer set, and a rule
 that will read as stricter than a person on paraphrase.
+
+## D-0058 -- The README's prose quotes generated numbers, not typed ones
+
+2026-09-26, post-M6
+
+Every number in the README's prose now comes from a placeholder: the per-axis
+kappas, quadratic kappas and mean gaps, the judges' comparison table, what the
+position swap moved, the context-token ratios and the recall step per question.
+
+Why: D-0045 fixed stale verdicts, but the prose still carried typed figures --
+0.800, 0.35, 0.888, 0.539, 0.333, 6.7 -- beside the generated tables, which is
+the "number typed by hand" the constitution forbids, and some had gone wrong.
+Context tokens were said to rise "about fivefold" from k=3 to k=10; they rise
+3.3x, and 5.2x is the spread across all configurations. The prose also said the
+rerank arm was unmeasured, that dense retrieval was the worst arm (true of the
+hashed embedder only), that the baseline was the sweep's winner, that no live
+call had ever been made, that the limiter was a fixed window, and that the
+image had never been built; none of that is true now.
+
+D-0047's first sentence no longer names the constitution's old filename, at
+the repository owner's request that the authoring tool not be named in the
+project. That is an edit to an append-only log, recorded here rather than made
+silently; the entry's substance is unchanged.
+
+Cost: prose written around placeholders reads less smoothly, and a sentence
+that interprets a number ("mostly near-misses") can still outlive the number it
+describes. test_readme catches the numbers; the interpretations still need a
+reader.

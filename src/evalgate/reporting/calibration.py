@@ -238,6 +238,29 @@ def _probe_section(
     return "\n\n".join(parts)
 
 
+def swap_changes(
+    judgments: Sequence[JudgeScore], axes: Sequence[str]
+) -> dict[str, tuple[int, int]]:
+    """Per axis: answers whose score moved when only the context order did, and pairs seen."""
+    swapped = {item.example_id: item for item in judgments if item.variant == VARIANT_SWAPPED}
+    pairs = [
+        (item, swapped[item.example_id])
+        for item in judgments
+        if item.variant == VARIANT_PRIMARY and item.example_id in swapped
+    ]
+    return {
+        axis: (
+            sum(
+                1
+                for primary, other in pairs
+                if primary.scores.as_dict()[axis] != other.scores.as_dict()[axis]
+            ),
+            len(pairs),
+        )
+        for axis in axes
+    }
+
+
 def _self_preference_section(
     cfg: DictConfig, probes: ProbesConfig, judgments: Sequence[JudgeScore], axes: Sequence[str]
 ) -> str:
@@ -385,7 +408,9 @@ def _provenance(judgment_set: JudgmentSet, scale: Scale, labels: Sequence[HumanL
     return lines
 
 
-def _comparison(sets: Sequence[JudgmentSet], label_set: LabelSet, fallback: JudgeConfig) -> str:
+def comparison_table(
+    sets: Sequence[JudgmentSet], label_set: LabelSet, fallback: JudgeConfig
+) -> str:
     """Kappa per axis for every judge against one label source."""
     axes: list[str] = []
     for judgment_set in sets:
@@ -528,7 +553,7 @@ def build_report(cfg: DictConfig, tokenizer: TokenEstimator) -> str:
     if len(sets) > 1:
         reference = label_sets[0]
         parts.append(heading(f"Judges compared against {reference.name} labels", 2))
-        parts.append(_comparison(sets, reference, fallback))
+        parts.append(comparison_table(sets, reference, fallback))
 
     for judgment_set in sets:
         parts.append(

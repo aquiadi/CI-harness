@@ -51,9 +51,10 @@ judgment -> run record -> report -> gate. Nothing downstream writes upstream.
   with backoff; after the configured attempt limit, fail loudly. A default
   score on parse failure silently manufactures data and is the single most
   dangerous thing you could add to this repo.
-- **Never compare runs across different prompt hashes, corpus hashes or config
-  fingerprints.** The reporting layer must refuse to place them in the same
-  table rather than footnote the difference.
+- **Never compare runs across different prompt hashes, corpus hashes, eval
+  sets or judges.** The reporting layer must refuse to place them in the same
+  table rather than footnote the difference, and the gate must refuse to
+  compare them. The judge is the instrument, not the system under test.
 - **Never let the gate pass on missing data.** Absent metrics fail the gate.
   "No baseline found" is a failure, not a pass.
 - **Never commit a number that was typed by hand.** Every figure in a report is

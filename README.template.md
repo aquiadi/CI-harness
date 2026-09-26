@@ -15,15 +15,16 @@ Most RAG projects I have read optimise the retriever and then guess at whether
 it got better. This one is the other way round.
 
 > Before you read the numbers: the ablation frontier ran on a synthetic corpus,
-> with the rule-based judge and the extractive generator, because I built this
-> in an environment that could reach neither the EU document servers nor an API
-> key (D-0009 in the decision log). The calibration section is different - those
-> scores came from a real LLM judge. So the two sets of numbers describe
-> different configurations and you cannot read them together. The harness is
-> real and the numbers are real measurements; what they measure is weaker than
-> what this is designed to run on. Every substitution is a config flag with its
-> cost written down. The README itself is rendered from the artifacts by
-> `make readme`, so nothing in it was typed by hand.
+> with the rule-based judge and the extractive generator, because I built it in
+> an environment that could reach neither the EU document servers nor an API
+> key (D-0009 in the decision log). The calibration section is different - its
+> headline scores came from a real LLM judge. A different judge is a different
+> instrument, so those numbers and the frontier's are never put in one table
+> (D-0051), and the two LLM-judged sweep cells are reported on their own. The
+> harness is real and the numbers are real measurements; what they measure is
+> weaker than what this is designed to run on. Every substitution is a config
+> flag with its cost written down. The README itself is rendered from the
+> artifacts by `make readme`, so no number in it was typed by hand.
 
 ## Architecture
 
@@ -96,11 +97,21 @@ make serve        # the query UI and POST /query on :8000
 For the real system -- real documents, bge embeddings, API generator and judge:
 
 ```bash
-make ml                              # sentence-transformers + torch
-make corpus                          # fetch and pin the EU sources by SHA256
-export ANTHROPIC_API_KEY=...
+make ml                                    # sentence-transformers + torch
+make corpus PROFILE="+experiment=live"     # fetch and pin the EU sources by SHA256
+export ANTHROPIC_API_KEY=...               # or GROQ_API_KEY and +experiment=live_groq
+make freeze PROFILE="+experiment=live"     # once, deliberately
 make eval PROFILE="+experiment=live"
 ```
+
+One thing has to exist first: an eval set for the real documents, under
+`data/eval/cbam/`. Gold evidence is a verbatim span of the corpus it came from,
+so the synthetic questions cannot be scored against the regulation, and the
+runner refuses to try rather than report the resulting zeros as a measurement
+(D-0050). `make gen-eval` drafts candidates and `make label` accepts them.
+
+Always pass a profile as `PROFILE`, never inside `ARGS`: the Makefile already
+passes one, and two `+experiment` values do not compose.
 
 ## Serving it
 
@@ -119,20 +130,27 @@ layer that reranked or rewrote queries on its own would be a different system
 from the one the frontier below describes, and the frontier would quietly stop
 being true.
 
-Two environment variables gate a public deployment, both off by default because
-the harness and the test suite want neither:
+`make serve` and the container both serve the frozen offline stack by default,
+so they start with no model download and no key. The deployment switches are
+environment variables, all off by default because the harness and the test
+suite want none of them:
 
 | variable | effect |
 | --- | --- |
 | `EVALGATE_API_KEY` | `POST /query` requires a matching `x-api-key` header |
-| `EVALGATE_RATE_LIMIT_PER_MINUTE` | per-client fixed window; returns 429 with `retry-after` |
-| `EVALGATE_OVERRIDES` | hydra overrides, space separated, e.g. `corpus=cbam` |
+| `EVALGATE_RATE_LIMIT_PER_MINUTE` | per-client sliding window; returns 429 with `retry-after` |
+| `EVALGATE_TRUSTED_PROXY_HOPS` | how many reverse proxies append to `X-Forwarded-For`; 0 means the peer address is the client |
+| `EVALGATE_OVERRIDES` | hydra overrides, space separated, e.g. `+experiment=live`; unset serves `+experiment=baseline` |
 
-`/health` is exempt from both on purpose: a load balancer carries no key, and a
-readiness probe that trips the rate limiter takes the service down exactly when
-it is busiest. The limiter is a fixed window in process memory -- it resets on
-restart and does not coordinate between replicas, so it stops a runaway script,
-not a determined adversary. Anything stronger belongs in front of the app.
+`/health` is exempt from the key and the limit on purpose: a load balancer
+carries no key, and a readiness probe that trips the rate limiter takes the
+service down exactly when it is busiest. The limiter keys on an address the
+caller cannot choose -- the peer, or the entry the outermost trusted proxy
+wrote -- because keying on the header a caller writes let a script escape the
+limit by changing it on every request (D-0056). It lives in process memory, so
+it resets on restart and does not coordinate between replicas: it stops a
+runaway script, not a determined adversary. Anything stronger belongs in front
+of the app. CI builds the image and asks it a question on every push.
 
 ## The CI split: replay on every pull request, live once a night
 
@@ -159,58 +177,93 @@ re-record, rather than a surprise invoice.
 
 One scheduled job runs live. `.github/workflows/nightly.yml` pulls the real
 corpus, installs the local encoder, and runs the same suite against the real
-API with its own frozen baseline. If the gate fails it opens an issue. Things
-only a live model can show you - a provider-side update, changed refusal
-behaviour, latency creep - surface there, once a day instead of once a push.
+API with its own frozen baseline -- Anthropic by default, Groq's free tier when
+the repository variable `EVALGATE_LIVE_PROFILE` says `+experiment=live_groq`.
+While the gate fails it keeps one issue open and updates it, and it closes the
+issue when the gate passes again. A `mode=freeze` dispatch measures a candidate
+live baseline and uploads it for review; nothing in CI commits a baseline.
+Things only a live model can show you - a provider-side update, changed
+refusal behaviour, latency creep - surface there, once a day instead of once a
+push.
 
 Neither half substitutes for the other. Replay catches "this change made
 retrieval worse", which is most changes. Live catches "the world moved under
 us", which is rarer and slower. Together they are what make it affordable to
 gate every PR on quality at all.
 
-`make record` re-records the cassettes. The recording is a reviewable diff, so
-a change in what the model says is something a person looks at rather than a
-number that quietly shifts.
+Pull-request CI runs two gates. The offline one -- extractive generator,
+rule-based judge -- needs no cassettes at all, and it cannot see a citation
+regression, because the extractive generator cites correctly by construction.
+The second, `+experiment=llm_replay`, gates a real generator and a real judge
+from cassettes. `make record` arms it: with `GROQ_API_KEY` set it records the
+cassettes and freezes `baseline.llm.json` in one pass, and the recording is a
+reviewable diff, so a change in what the model says is something a person looks
+at rather than a number that quietly shifts.
 
-*State of the cassettes in this repository:* empty. The environment this repo
-was built in had no API credentials, so no live call was ever made and there
-was nothing honest to record. The replay path is exercised by unit tests, and
-the committed gate runs on the offline stack -- the extractive generator and the
-rule-based judge -- which needs no cassettes at all. Recording them is one
-command for anyone with a key.
+Latency is the one thing the frozen baseline cannot anchor, because it was
+measured on whatever machine froze it. The gate job measures the base commit
+on the same runner first and compares the change's latency to that, and every
+retrieval is timed as the median of five after a warm-up pass: timed once and
+cold, identical back-to-back runs were up to 30% apart, wider than the
+threshold (D-0055). Quality is still compared to the frozen baseline, so it
+cannot ratchet down one small step per merge.
+
+*State of the cassettes in this repository:* empty, so the LLM gate reports
+itself not armed. Live calls have been made -- the Qwen judgments in the
+calibration section and two sweep cells came from Groq's free tier -- but in
+live mode, which records nothing. Arming the gate is one command for anyone
+with a key.
 
 ## Judge calibration findings
 
 Full report: [`reports/judge_calibration.md`](reports/judge_calibration.md).
-Agreement between the judge whose scores are on disk (`${calibration_judge}`)
-and the only labels currently on disk (`${label_source}`, ${label_pairs} paired
-items):
+Agreement between the LLM judge (`${calibration_judge}`) and the only labels
+currently on disk (`${label_source}`, ${label_pairs} paired items). Every judge
+set on disk carries a record of the judge and retrieval stack that produced
+it, and the report describes each by that record rather than by whatever the
+current config says (D-0052):
 
 ${calibration_table}
 
-The judge and I agree on one axis out of three, and the axis we disagree on
-worst is the one that matters most here.
+Groundedness comes out at ${kappa_groundedness}, with our means
+${gap_groundedness} apart. On the question of whether a claim is actually
+supported by the retrieved text, the judge and I are largely measuring the same
+thing.
 
-Groundedness comes out at 0.800, with our means within 0.07 of each other.
-That is substantial agreement by any conventional reading. On the question of
-whether a claim is actually supported by the retrieved text, the judge and I
-are measuring the same thing.
+Relevance sits at ${kappa_relevance} and citation correctness at
+${kappa_citation_correctness}. Quadratic kappa on relevance is
+${qkappa_relevance}, which says our disagreements there are mostly
+near-misses rather than reversals; on citation correctness it is
+${qkappa_citation_correctness}, which says those gaps are larger.
 
-Relevance and citation correctness both sit near 0.35. That is fair agreement
-at best. Quadratic kappa stays high on relevance (0.888) because our
-disagreements there are near-misses, not reversals - but on citation
-correctness it falls to 0.539, which means those gaps are real.
+Then there is the direction of the error. The judge's mean citation score minus
+mine is ${bias_citation_correctness}: where it is positive, the judge credits
+citations I rejected. For a system whose whole claim is that its answers are
+checkable against the regulation, that is the dangerous way round for the bias
+to run: a judge generous about citations would pass a generator that
+fabricates them.
 
-Then there is the direction of the error. The judge scores citation correctness
-0.333 higher than I do, on average. It credits citations I rejected. For a
-system whose whole claim is that its answers are checkable against the
-regulation, that is the worst way round for the bias to run: a judge this
-generous about citations would happily pass a generator that fabricates them.
+The rule-based judges are the baseline it has to beat. They scored the same
+answers, over a different retrieval stack -- hashed embeddings, because bge
+weights were not reachable when they ran -- and the report puts each judge's
+stack beside its kappa:
 
-I want to be careful about what I can conclude from that, though. One labeller
-and ${answer_slots} items gives me no inter-annotator agreement, so a kappa of
-0.35 is unattributable. It might mean the judge is wrong. It might mean the
-axis is loose enough that two people would not agree either. Those want
+${judge_comparison}
+
+`rule-based-v1` counts a citation correct whenever the chunk it names is in the
+context. `rule-based-v2` also demands that the named chunk hold the evidence:
+most of the sentence's content words and every one of its numbers, which is
+the rule my own labelling notes describe (D-0057). On citation correctness v1
+reaches ${kappa_rule_based_v1_citation_correctness} and v2
+${kappa_rule_based_v2_citation_correctness} against the LLM judge's
+${kappa_citation_correctness}. A word-overlap rule cannot follow a paraphrase,
+and its threshold was fixed before measuring rather than tuned on these
+fifteen items, which would have reported the fit and not the rule.
+
+I want to be careful about what I can conclude from any of this, though. One
+labeller and ${answer_slots} items gives me no inter-annotator agreement, so a
+low kappa is unattributable. It might mean the judge is wrong. It might mean
+the axis is loose enough that two people would not agree either. Those want
 different fixes - a better judge versus a sharper rubric - and this measurement
 cannot tell me which. At n=${answer_slots} one item also moves kappa further
 than any improvement I would plausibly make.
@@ -221,48 +274,73 @@ a point of kappa means something; then tighter anchors in
 `prompts/judge/rubric_v1.md` for whichever axis two humans agree on and the
 judge still misses.
 
-The bias probes, on the current judge: position swap moves no score at all
-(the rule ignores context order by construction, which is what makes it a
-useful control), length bias is weak in both directions across the three axes,
-and the self-preference probe reports that it needs answers from two generators
-and has not run.
+The bias probes, on the LLM judge: reversing the order of the retrieved
+context ${swap_summary}; the length-bias correlations and their p-values are in
+the report; and the self-preference probe has not run, because it needs the
+same judge's scores for two generators' answers -- which `make judge` can now
+accumulate instead of overwriting.
 
 ## The ablation frontier
 
 Full report with both frontier figures:
 [`reports/pareto.md`](reports/pareto.md). ${n_configs} configurations measured
-over {chunker} x {retriever} x {k}; the nine cross-encoder rerank cells need
-the `ml` extra and are listed in the report as unmeasured. `*` marks a
+over {chunker} x {retriever} x {k}, dense and hybrid under both the hashed
+embedder and bge-small, all judged by the rule-based judge. One row per
+measurement: BM25 ignores the embedder, so its two sweeps were one measurement
+taken twice and appear once (D-0053). ${n_excluded} runs judged by the LLM
+judge are in the report's own section, not in this table. `*` marks a
 configuration on at least one frontier.
 
 ${pareto_table}
 
 What the sweep says on this corpus:
 
-k matters more than anything else. Moving from k=3 to k=10 shifts recall
-further than any choice of chunker or retriever, and it is also where the cost
-goes - context tokens per query rise about fivefold across that range.
+k matters more than the choice of chunker or retriever. Moving from k=3 to k=10
+shifts recall further than either, and it is also where the cost goes - context tokens per query rise ${context_k10_over_k3}x across that range
+on average, and ${context_spread}x from the leanest configuration to the
+heaviest.
 
-BM25 is the value pick. It lands within a few percent of hybrid RRF on quality
-at roughly a tenth of the p95 latency. The fusion is paying for a dense arm
-that the hashed embedder makes weak. Swap in real bge embeddings and that
-balance should move, which makes it the first thing worth re-measuring.
+The embedder decides whether dense retrieval is any good. Under the hashed
+embedder -- a signed random projection that exists to make the harness free to
+run -- dense is the worst arm in the table, which says nothing about dense
+retrieval. Under bge-small the same arm sits among the best rows. The hashed
+rows are still worth keeping: they are the floor, and the offline gate runs on
+them.
 
-Dense retrieval is the worst arm throughout, and you should not believe that.
-It is a property of the deterministic hashed embedder, which is exactly what
-that embedder is for: it makes the harness free to run and it makes this row
-meaningless. Read it as a floor.
+BM25 is the value pick. It lands within a few points of the best
+configurations at a small fraction of their p95 latency, with no model at all.
+
+Reranking buys the best ranking in the table -- the highest nDCG@10 -- and costs
+seconds per query on a CPU cross-encoder, where everything else costs
+milliseconds. Whether that trade is worth making depends entirely on where the
+reranker runs.
+
+The latency column was timed once per question, cold, which is how every run in
+the committed sweep was measured. Runs since D-0055 are timed as a warm median
+and record their protocol, so the two are never silently mixed.
 
 ## The gate
 
-`baseline.json` freezes the winning configuration: `${chunker}` chunking,
+`baseline.json` freezes the offline stack: `${chunker}` chunking,
 `${retriever}` retrieval at k=${k}, `${embedder}` embeddings, `${generator}`
 generation, `${judge_model}` judging, over `${corpus}` (`${corpus_hash}`),
 scored on ${n_retrieval_scored} retrieval slots and ${n_answers_scored} answer
-slots. `make eval` re-measures and exits nonzero if composite quality drops
-more than 2%, p95 latency rises more than 20%, or cost per query rises more
-than 15%. Those thresholds live in `configs/gate/`; none of them appears in
+slots. It is not the best row in the table -- several bge configurations score
+higher -- it is the one pull-request CI can run with no model download and no
+key. `make eval` re-measures and exits nonzero if composite quality drops more
+than 2%, p95 latency rises more than 20%, cost per query rises more than 15%,
+or any single component of the composite -- recall, or one judge axis -- falls
+by more than 0.1 on its 0..1 scale. The last one is there because a weighted
+mean can hold still while one of its parts collapses and another covers it
+(D-0054). Those thresholds live in `configs/gate/`; none of them appears in
 Python.
+
+The report the gate writes, and comments on the pull request, lists the
+questions that moved -- a hit that became a miss, an answer that lost a judge
+point -- and a paired bootstrap interval around the composite delta. The
+interval is reported, never gated: it says how far the delta could move under
+another sample of questions this size, and a gate that passed a drop because
+the interval was wide would be widening its own threshold.
 
 Three behaviours in there are load-bearing.
 
@@ -270,13 +348,16 @@ Missing data fails. A metric absent from the run, absent from the baseline, or
 a missing baseline file are all failures. The state where a regression is
 invisible must never be the state where the build is green.
 
-Changed ground fails. If the corpus, a prompt or an eval set differs from the
-baseline's, the comparison means nothing, so the gate refuses instead of
-printing a number. Changing them is fine - it needs a deliberate `make freeze`,
-which shows up as a reviewable diff.
+Changed ground fails. If the corpus, a prompt, an eval set or the judge differs
+from the baseline's, the comparison means nothing, so the gate refuses instead
+of printing a number. The judge counts as ground because it is the ruler: a
+composite from another judge is in different units. Changing any of them is
+fine - it needs a deliberate `make freeze`, which shows up as a reviewable
+diff.
 
 Changed configuration does not fail. The config hash and index hash are
-supposed to differ. Judging that difference is the whole point.
+supposed to differ, and so is the generator. Judging that difference is the
+whole point.
 
 ## Engineering decisions and tradeoffs
 
@@ -289,8 +370,13 @@ code:
   set could score exactly one configuration. Cost: a span straddling a chunk
   boundary is a miss, which is harsher than a human would be.
 - **Everything is content-addressed.** Corpus, index, prompts, config,
-  eval sets. A run that cannot state what it measured is not evidence, and the
-  reporting layer refuses to put runs with different ground in one table.
+  eval sets, and the judge's fingerprint. A run that cannot state what it
+  measured is not evidence, and the reporting layer refuses to put runs with
+  different ground in one table.
+- **An eval set belongs to one corpus** (D-0050). Every gold span has to occur
+  in the corpus being measured, or the run does not start. The alternative was
+  scoring the synthetic questions against the real regulation and reading the
+  zeros as a retriever problem.
 - **Exact search, no ANN index** (D-0011). At this corpus size approximation
   buys nothing and costs reproducibility. It does not scale, and the entry says
   what to do when it stops being true.
@@ -305,7 +391,7 @@ code:
   bill.
 - **Cost is reported twice** (D-0028), measured and projected, in separate
   columns. An offline generator's measured cost is genuinely zero while its
-  token footprint still varies fivefold across configurations; reporting only
+  token footprint still varies ${context_spread}x across configurations; reporting only
   the zero would hide a real difference and reporting the projection as
   measured would be a lie.
 - **A rule-based judge and a no-model generator ship as baselines** (D-0021,
@@ -346,49 +432,50 @@ Both decisions are recorded with their tradeoffs in `docs/DECISIONS.md`.
 Worst first.
 
 1. The judge is only partly validated, and unattributably so. Groundedness
-   agrees at 0.800. Relevance and citation correctness sit near 0.35, and with
-   one labeller I cannot tell whether that is the judge being wrong or the
-   rubric being loose. The citation bias runs generous, which is the dangerous
-   direction. A second labeller is the next thing that would move this.
+   agrees at ${kappa_groundedness}; relevance at ${kappa_relevance} and citation
+   correctness at ${kappa_citation_correctness}, and with one labeller I cannot
+   tell whether a low number is the judge being wrong or the rubric being
+   loose. A second labeller is the next thing that would move this.
 2. The corpus is synthetic. Five documents I wrote in the structural style of
    the CBAM instruments, marked as such in every file (D-0016). Shorter
    sentences, fewer cross-references, no 400-word provisions. The numbers here
-   are optimistic against the real thing. `make corpus` does now fetch the real
-   instruments - the regulation, the implementing regulation, both guidance
-   documents, the ETS directive, with only the date-pinned consolidated text
-   still 404ing - so switching is a matter of re-running under `corpus=cbam`,
-   not of network access. I have not re-run it yet.
+   are optimistic against the real thing. `make corpus PROFILE="+experiment=live"`
+   does fetch the real instruments, and the manifest pins them, but switching
+   needs an eval set written against them -- the synthetic questions' gold spans
+   do not occur in the regulation -- and that set does not exist yet.
 3. The measured generator makes no API call. The committed frontier uses the
    extractive baseline, so every quality figure is a floor and the cost axis is
    a projection rather than spend (D-0028). Relative ordering of retrieval
    configurations is what the sweep measures and does not depend on what sits
    downstream, but the absolute quality column would move with a real one.
-4. The embeddings are a hash, not a model. `embedder=hashed` is a signed random
-   projection (D-0005): deterministic, free, and much worse than bge-small. It
-   is why dense retrieval is the worst arm, which tells you nothing about dense
-   retrieval. Every dense and hybrid row wants re-running with
-   `embedder=local`.
+   ${n_excluded} cells with an LLM generator exist, judged by the LLM judge,
+   and are reported separately.
+4. The LLM gate is not armed. Its profile, its CI job and `make record` exist,
+   but no cassettes have been recorded, so pull-request CI still gates only
+   the offline stack, which cannot see a citation regression.
 5. The eval sets are too small. ${retrieval_slots} retrieval slots and
-   ${answer_slots} answer pairs, against targets of 120 and 150. At n=15 one
-   item moves recall@k by 6.7 points, so anything smaller than that in the
-   Pareto table is noise. `make gen-eval` drafts candidates and `make label`
-   reviews them.
-6. Replayed latency is recorded latency. A replay run reports the latency
+   ${answer_slots} answer pairs, against targets of 120 and 150. At this size
+   one item moves recall@k by ${recall_step} points, so anything smaller than
+   that in the Pareto table is noise, and the gate's bootstrap interval says so
+   on every run. `make gen-eval` drafts candidates and `make label` reviews
+   them.
+6. The nightly live job cannot pass yet. It now runs -- it used to fail to
+   compose its own config every night (D-0049) -- but it needs a real-corpus
+   eval set, a frozen live baseline and an API key secret, and until all three
+   exist it keeps one issue open saying which is missing.
+7. Replayed latency is recorded latency. A replay run reports the latency
    measured when the cassette was recorded, not the time to read it back
    (D-0030). That is the honest choice - the alternative reports disk speed as
    model latency - but p95 in a replayed run is a historical number, and the
    run record flags it.
-7. The rerank arm is unmeasured. Nine of the 36 cells need the `ml` extra for
-   the cross-encoder and got skipped with the reason recorded. Reranking is the
-   one place in retrieval where a second model usually earns its cost, so this
-   is the most interesting hole in the table.
 8. One labeller, no inter-annotator agreement. The schema records who labelled
    what and when, so a second person is supported. With one, there is no way to
    separate judge error from label noise. See limitation 1 - these are the same
    problem.
-9. The container image has never been built. The Dockerfile is written and
-   reviewed, but I had no Docker daemon, so `make docker` has not run once.
-   Treat it as unverified.
+9. The rule-based judges and the LLM judge saw different retrieval stacks when
+   they scored the labelled answers, so the gap between their kappas is not only
+   a difference between judges. The calibration report prints each stack beside
+   its judge for that reason.
 
 ## Layout
 

@@ -19,5 +19,9 @@ measured here is presented as a measurement of the system on the real corpus.
 
 To use the real documents instead:
 
-    make corpus                      # fetch and pin the real sources
-    make index corpus=cbam           # index them
+    make corpus PROFILE="+experiment=live"   # fetch and pin the real sources
+    make index PROFILE="+experiment=live"    # index them
+
+and build an eval set for them under `data/eval/cbam/`: the questions in
+`data/eval/cbam_synthetic/` quote this corpus, and the runner refuses to score
+them against any other.

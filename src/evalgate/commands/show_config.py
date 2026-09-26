@@ -29,7 +29,7 @@ def run(overrides: list[str]) -> int:
 
     manifest = load_manifest_if_present(resolve_path(cfg, "paths.corpus_manifest_path"))
     if manifest is None:
-        console.print("corpus: no manifest yet (run `make corpus`)")
+        console.print("corpus: no manifest yet (run `make corpus PROFILE=+experiment=live`)")
     else:
         console.print(
             f"corpus: {len(manifest.ok_entries)}/{len(manifest.entries)} documents, "

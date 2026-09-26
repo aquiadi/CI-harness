@@ -26,7 +26,13 @@ from evalgate.evalsets.store import read_jsonl
 from evalgate.gate.baseline import read_baseline
 from evalgate.hashing import short
 from evalgate.prompts import Prompt
-from evalgate.reporting.calibration import agreement_rows, partition_labels, scale_of
+from evalgate.reporting.calibration import (
+    agreement_rows,
+    comparison_table,
+    partition_labels,
+    scale_of,
+    swap_changes,
+)
 from evalgate.reporting.markdown import number, table
 from evalgate.reporting.pareto import (
     RunSummary,
@@ -135,6 +141,75 @@ def _calibration_rows(
     )
 
 
+def _key(name: str) -> str:
+    """A template identifier from a judge model or an axis name."""
+    return "".join(char if char.isalnum() else "_" for char in name).strip("_")
+
+
+def _calibration_facts(
+    sets: list[JudgmentSet], labels: list[HumanLabel], fallback: JudgeConfig
+) -> dict[str, str]:
+    """The individual numbers the calibration prose quotes, so none is typed by hand."""
+    label_sets = partition_labels(labels)
+    facts: dict[str, str] = {"judge_comparison": "", "swap_summary": "no swapped scorings"}
+    if not label_sets or not sets:
+        return facts
+    label_set = label_sets[0]
+    if len(sets) > 1:
+        facts["judge_comparison"] = comparison_table(sets, label_set, fallback)
+    for judgment_set in sets:
+        scale = scale_of(judgment_set, fallback)
+        agreement, _ = agreement_rows(label_set, judgment_set, scale)
+        prefix = _key(judgment_set.judge_model)
+        for row in agreement:
+            kappa = number(row.kappa) if row.is_defined else UNDEFINED
+            facts[f"kappa_{prefix}_{row.axis}"] = kappa
+        if judgment_set is sets[0]:
+            for row in agreement:
+                facts[f"kappa_{row.axis}"] = number(row.kappa) if row.is_defined else UNDEFINED
+                facts[f"qkappa_{row.axis}"] = (
+                    number(row.quadratic_kappa) if row.is_defined else UNDEFINED
+                )
+                facts[f"bias_{row.axis}"] = f"{row.mean_judge - row.mean_human:+.3f}"
+                facts[f"gap_{row.axis}"] = number(abs(row.mean_judge - row.mean_human), 2)
+            moved = swap_changes(judgment_set.judgments, scale.axes)
+            phrases = [
+                f"{axis.replace('_', ' ')} on {changed} of {total}"
+                for axis, (changed, total) in moved.items()
+                if changed
+            ]
+            total = max((pairs for _, pairs in moved.values()), default=0)
+            facts["swap_summary"] = (
+                "changed " + ", ".join(phrases) + " answers and no other score"
+                if phrases
+                else f"changed no score on any of {total} answers"
+            )
+    return facts
+
+
+def _sweep_facts(summaries: list[RunSummary], n_retrieval: int) -> dict[str, str]:
+    """Ratios the sweep prose quotes."""
+    context = [
+        float(item.metrics["context_tokens_per_query"])
+        for item in summaries
+        if item.metrics.get("context_tokens_per_query")
+    ]
+
+    def mean_context(k: int) -> float:
+        values = [
+            float(item.metrics["context_tokens_per_query"])
+            for item in summaries
+            if item.metrics.get("k") == k and item.metrics.get("context_tokens_per_query")
+        ]
+        return sum(values) / len(values) if values else float("nan")
+
+    return {
+        "context_spread": f"{max(context) / min(context):.1f}" if context else UNDEFINED,
+        "context_k10_over_k3": f"{mean_context(10) / mean_context(3):.1f}",
+        "recall_step": f"{100.0 / n_retrieval:.1f}" if n_retrieval else UNDEFINED,
+    }
+
+
 DEFAULT_OVERRIDES = ["+experiment=baseline"]
 
 
@@ -164,6 +239,8 @@ def build_values(root: Path, overrides: list[str] | None = None) -> dict[str, An
     fingerprint = baseline.fingerprint
 
     return {
+        **_calibration_facts(judgment_sets, labels, judge),
+        **_sweep_facts(summaries, int(metrics.get("n_retrieval", 0) or 0)),
         "quality": number(metrics.get("composite_quality")),
         "recall": number(metrics.get("recall_at_k")),
         "ndcg": number(metrics.get("ndcg_at_10")),
