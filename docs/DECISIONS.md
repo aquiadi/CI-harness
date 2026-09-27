@@ -1424,3 +1424,36 @@ Cost: prose written around placeholders reads less smoothly, and a sentence
 that interprets a number ("mostly near-misses") can still outlive the number it
 describes. test_readme catches the numbers; the interpretations still need a
 reader.
+
+## D-0059 -- A drafted eval set for the real corpus, scored only once a person accepts it
+
+2026-09-27, post-M6
+
+`data/eval/cbam/` holds 28 retrieval questions and 12 answer examples for the
+real documents, seeded from `data/eval/cbam/seeds/`. The retrieval questions
+are drafts: the runner scores none of them until a person accepts each one.
+The answer examples vary in quality on purpose and carry no author scores.
+
+Why drafts: they were written by a model from the extracted text, and a
+question set that its author also accepted is a measurement of the author.
+The evidence is the part that can be checked mechanically, and is: every gold
+span occurs verbatim in the named document, or seeding fails. Why no author
+scores on the answers: the synthetic set's seed labels were written by the
+hand that wrote the answers (D-0019), and the calibration report has to warn
+about them wherever they appear. For the real corpus the only labels will be
+a person's.
+
+`scripts/seed_evalsets.py` now seeds whichever corpus the profile selects
+instead of hard-coding the synthetic one, reads origin and status from the
+seed file, and keeps a person's accept or reject when re-seeding a question
+whose text and evidence have not changed -- otherwise `make seed` would have
+reset every review to draft.
+
+The fetched documents matched the SHA256 pinned on 2026-09-10 byte for byte,
+so the corpus the drafts were written against is the pinned one. Spans avoid
+the ETS directive, whose PDF extracts with words split mid-token ("EUR 10 0"),
+which will also cost it at retrieval time; that is a property of the source
+and is left visible rather than patched over.
+
+Cost: nothing on the real corpus is measured until the review happens, so the
+live profiles still refuse to run. That is the intended state.

@@ -90,6 +90,8 @@ def _resolve_spans(chunks: list[Chunk], doc_id: str, spans: list[str], where: st
 def _seed_retrieval(
     seed: dict[str, Any], chunks: list[Chunk], corpus_name: str, corpus_hash: str, chunker: str
 ) -> list[RetrievalExample]:
+    if seed.get("corpus") != corpus_name:
+        raise SeedError(f"seed file is for corpus {seed.get('corpus')!r}, not {corpus_name!r}")
     examples: list[RetrievalExample] = []
     for item in seed["examples"]:
         gold_ids = _resolve_spans(chunks, item["doc"], item["spans"], item["id"])
@@ -143,8 +145,8 @@ def _seed_answers(
                 gold_doc_id=doc_id,
                 corpus=corpus_name,
                 corpus_hash=corpus_hash,
-                origin=Origin.SEED,
-                status=ReviewStatus.ACCEPTED,
+                origin=Origin(seed.get("origin", "seed")),
+                status=ReviewStatus(seed.get("status", "accepted")),
                 notes=f"flaw: {item.get('flaw', 'none')}",
             )
         )
@@ -180,10 +182,44 @@ def _merge[T: _Identified](existing: Sequence[T], fresh: Sequence[T]) -> list[T]
     return [by_id[key] for key in sorted(by_id)]
 
 
+def keep_reviews(
+    existing: Sequence[RetrievalExample], fresh: Sequence[RetrievalExample]
+) -> list[RetrievalExample]:
+    """Carry a person's review over to a re-seeded draft that has not changed.
+
+    A seed file says `status: draft`; re-seeding must not undo someone's
+    accept or reject. When the question or its evidence has changed, the old
+    review no longer applies and the draft stands.
+    """
+    reviewed = {example.id: example for example in existing}
+    kept: list[RetrievalExample] = []
+    for example in fresh:
+        before = reviewed.get(example.id)
+        unchanged = before is not None and (
+            before.question == example.question
+            and before.gold_spans == example.gold_spans
+            and before.gold_doc_id == example.gold_doc_id
+        )
+        if before is not None and unchanged and before.status is not ReviewStatus.DRAFT:
+            example = example.model_copy(
+                update={
+                    "status": before.status,
+                    "reviewed_by": before.reviewed_by,
+                    "reviewed_at": before.reviewed_at,
+                    "notes": before.notes,
+                }
+            )
+        kept.append(example)
+    return kept
+
+
 def main(argv: list[str] | None = None) -> int:
     """Materialise the seed files."""
     overrides = list(argv if argv is not None else sys.argv[1:])
-    cfg = load_config(overrides=["corpus=cbam_synthetic", *overrides])
+    # The corpus is whatever the profile selects: the default is the synthetic
+    # one, and `make seed PROFILE="+experiment=live"` seeds the real corpus from
+    # data/eval/cbam/seeds/.
+    cfg = load_config(overrides=overrides)
 
     tokenizer = build_tokenizer(cfg)
     chunker = build_chunker(cfg, tokenizer)
@@ -206,9 +242,14 @@ def main(argv: list[str] | None = None) -> int:
     answers_path = resolve_path(cfg, "evalsets.answers_path")
     labels_path = resolve_path(cfg, "evalsets.seed_labels_path")
 
-    write_jsonl(retrieval_path, _merge(read_jsonl(retrieval_path, RetrievalExample), retrieval))
+    existing_retrieval = read_jsonl(retrieval_path, RetrievalExample)
+    retrieval = keep_reviews(existing_retrieval, retrieval)
+    write_jsonl(retrieval_path, _merge(existing_retrieval, retrieval))
     write_jsonl(answers_path, _merge(read_jsonl(answers_path, AnswerExample), answers))
-    write_jsonl(labels_path, labels)
+    # A seed file without author scores has no seed labels, and writing an
+    # empty labels file would imply someone had rated nothing.
+    if labels or labels_path.is_file():
+        write_jsonl(labels_path, labels)
 
     console.print(f"{len(retrieval)} retrieval slots -> {retrieval_path}")
     console.print(f"{len(answers)} answer examples -> {answers_path}")

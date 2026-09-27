@@ -110,3 +110,28 @@ def test_seeding_is_byte_idempotent(repo_root: Path) -> None:
         assert (repo_root / "data" / "eval" / "cbam_synthetic" / name).read_text(
             encoding="utf-8"
         ) == before[name]
+
+
+def test_reseeding_keeps_a_persons_review_of_an_unchanged_draft() -> None:
+    """A seed file says draft; re-running `make seed` must not undo an accept."""
+    from scripts.seed_evalsets import keep_reviews
+
+    from evalgate.evalsets.schemas import RetrievalExample, ReviewStatus
+
+    def example(question: str, status: ReviewStatus) -> RetrievalExample:
+        return RetrievalExample(
+            id="r-1",
+            question=question,
+            gold_spans=["span"],
+            gold_doc_id="d",
+            corpus="cbam",
+            corpus_hash="h",
+            status=status,
+            reviewed_by="a-person" if status is not ReviewStatus.DRAFT else None,
+        )
+
+    accepted = example("When?", ReviewStatus.ACCEPTED)
+    [kept] = keep_reviews([accepted], [example("When?", ReviewStatus.DRAFT)])
+    assert kept.status is ReviewStatus.ACCEPTED and kept.reviewed_by == "a-person"
+    [changed] = keep_reviews([accepted], [example("When exactly?", ReviewStatus.DRAFT)])
+    assert changed.status is ReviewStatus.DRAFT, "a changed question needs a fresh review"

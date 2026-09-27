@@ -1,0 +1,144 @@
+# Answer examples for validating the judge on the real CBAM corpus.
+#
+# Drafted by a model, like the retrieval drafts beside this file. The answers
+# vary in quality on purpose -- a judge validated only on good answers has not
+# been validated -- and each declares the flaw it was written to contain.
+#
+# There are deliberately NO author_scores here. The synthetic set's scores were
+# written by the same hand as its answers (D-0019); for the real corpus the
+# only labels are the ones a person gives with
+#   make label PROFILE="+experiment=live"
+# so the calibration report measures the judge against someone independent.
+#
+# Citation placeholders are substituted by scripts/seed_evalsets.py under the
+# reference chunker: ${gold} the chunk holding the gold evidence, ${wrong} a
+# chunk from another document, ${missing} an id that does not exist.
+corpus: cbam
+origin: model
+labelled_at: "2026-09-27T00:00:00Z"
+examples:
+  - id: cbam-a-001
+    question: When is the quarterly CBAM report due during the transitional period?
+    doc: impl_reg_2023_1773
+    spans:
+      - "the reporting declarant shall submit the CBAM reports to the CBAM Transitional Registry no later than one month after the end of that quarter"
+    flaw: none
+    answer: |
+      Each quarterly CBAM report must be submitted to the CBAM Transitional
+      Registry no later than one month after the end of the quarter it covers
+      [${gold}].
+
+  - id: cbam-a-002
+    question: How long after a quarter ends can a submitted CBAM report still be modified?
+    doc: impl_reg_2023_1773
+    spans:
+      - "A reporting declarant may modify a submitted CBAM report until two months after the end of the relevant reporting quarter"
+    flaw: wrong number (three months instead of two)
+    answer: |
+      A reporting declarant may modify a submitted CBAM report until three months
+      after the end of the relevant reporting quarter [${gold}].
+
+  - id: cbam-a-003
+    question: What is the penalty for failing to report emissions during the transitional period?
+    doc: impl_reg_2023_1773
+    spans:
+      - "The amount of the penalty shall be between EUR 10 and EUR 50 per tonne of unreported emissions"
+    flaw: none
+    answer: |
+      The penalty is between EUR 10 and EUR 50 per tonne of unreported emissions,
+      and it increases in line with the European index of consumer prices
+      [${gold}].
+
+  - id: cbam-a-004
+    question: How much of a complex good's embedded emissions may be based on estimations?
+    doc: impl_reg_2023_1773
+    spans:
+      - "up to 20 % of the total embedded emissions of complex goods may be based on estimations made available by the operators of the installations"
+    flaw: correct claim cited to the wrong chunk
+    answer: |
+      Up to 20 % of the total embedded emissions of complex goods may be based on
+      estimations made available by the operators of the installations
+      [${wrong}].
+
+  - id: cbam-a-005
+    question: By what date must certificates be surrendered each year?
+    doc: reg_2023_956
+    spans:
+      - "By 31 May of each year, and for the first time in 2027 for the year 2026, each authorised CBAM declarant shall use the CBAM registry"
+    flaw: none
+    answer: |
+      Certificates covering the previous year's embedded emissions must be
+      surrendered by 31 May of each year, for the first time in 2027 for the year
+      2026 [${gold}].
+
+  - id: cbam-a-006
+    question: How is the price of CBAM certificates set?
+    doc: reg_2023_956
+    spans:
+      - "The Commission shall calculate the price of CBAM certificates as the average of the closing prices of EU ETS allowances on the auction platform"
+    flaw: unsupported claim (a fixed annual price set by Member States)
+    answer: |
+      Each Member State sets a fixed CBAM certificate price once a year, based on
+      its national carbon tax [${gold}].
+
+  - id: cbam-a-007
+    question: Can excess certificates be sold back, and is there a limit?
+    doc: reg_2023_956
+    spans:
+      - "shall be limited to one third of the total number of CBAM certificates purchased by the authorised CBAM declarant during the previous calendar year"
+    flaw: none
+    answer: |
+      Yes. On request, excess certificates are repurchased, but the number is
+      limited to one third of the certificates the declarant purchased during the
+      previous calendar year [${gold}]. The request has to be submitted by 30 June
+      [${gold}].
+
+  - id: cbam-a-008
+    question: What happens to certificates that stay unused on the account?
+    doc: reg_2023_956
+    spans:
+      - "the Commission shall cancel any CBAM certificates that were purchased during the year before the previous calendar year"
+    flaw: contradicts the source (claims a refund)
+    answer: |
+      On 1 July each year the Commission cancels certificates bought during the
+      year before the previous calendar year, and the declarant is refunded their
+      purchase price [${gold}].
+
+  - id: cbam-a-009
+    question: What penalty applies to a person who imports CBAM goods without being an authorised declarant?
+    doc: reg_2023_956
+    spans:
+      - "be an amount from three to five times the penalty referred to in paragraph 1"
+    flaw: no citation
+    answer: |
+      Such a person is liable for a penalty of three to five times the standard
+      penalty for each certificate they should have surrendered.
+
+  - id: cbam-a-010
+    question: What share of embedded emissions must be covered by certificates at the end of each quarter?
+    doc: reg_2023_956
+    spans:
+      - "at the end of each quarter corresponds to at least 80 % of the embedded emissions"
+    flaw: refuses although the evidence is available
+    answer: |
+      The retrieved context does not say how many certificates must be held
+      during the year, so I cannot answer this.
+
+  - id: cbam-a-011
+    question: Are small consignments exempt from CBAM?
+    doc: guidance_importers
+    spans:
+      - "does not exceed EUR 150 per consignment"
+    flaw: cites a chunk that does not exist
+    answer: |
+      Yes. Goods whose value does not exceed EUR 150 per consignment are treated
+      as exempt [${missing}].
+
+  - id: cbam-a-012
+    question: Does CBAM say anything about VAT on certificates?
+    doc: reg_2023_956
+    spans: []
+    flaw: none (correct refusal; the corpus does not cover it)
+    answer: |
+      The documents do not address the VAT treatment of CBAM certificates, so I
+      cannot answer this from the context provided.

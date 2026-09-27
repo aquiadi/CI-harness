@@ -1,0 +1,188 @@
+# Retrieval eval slots for the real CBAM corpus (corpus=cbam): Regulation (EU)
+# 2023/956, Implementing Regulation (EU) 2023/1773, the Commission's two
+# guidance documents and the ETS directive, as pinned in
+# data/corpus/manifest.json.
+#
+# DRAFTS. These were drafted by a model from the extracted document text, not
+# by a person, and they are not scored until a person accepts them:
+#
+#   make seed PROFILE="+experiment=live"
+#   make label PROFILE="+experiment=live" ARGS="label.mode=retrieval"
+#
+# Every gold span is copied verbatim from the extracted text and verified by
+# scripts/seed_evalsets.py, so a typo fails the seeding rather than producing
+# a slot no retriever can satisfy. Spans avoid the ETS directive, whose PDF
+# extracts with words split mid-token ("EUR 10 0"), and the guidance
+# documents' hyphenation artefacts.
+corpus: cbam
+origin: model
+status: draft
+examples:
+  - id: cbam-r-001
+    question: When is the quarterly CBAM report due during the transitional period?
+    doc: impl_reg_2023_1773
+    difficulty: lexical
+    spans:
+      - "the reporting declarant shall submit the CBAM reports to the CBAM Transitional Registry no later than one month after the end of that quarter"
+  - id: cbam-r-002
+    question: How long after a quarter ends can I still change a CBAM report I already submitted?
+    doc: impl_reg_2023_1773
+    difficulty: semantic
+    spans:
+      - "A reporting declarant may modify a submitted CBAM report until two months after the end of the relevant reporting quarter"
+  - id: cbam-r-003
+    question: Could the reports for the first two reporting periods be corrected later than usual?
+    doc: impl_reg_2023_1773
+    difficulty: semantic
+    spans:
+      - "a reporting declarant may modify the CBAM reports for the first two reporting periods until the submission deadline for the third CBAM report"
+  - id: cbam-r-004
+    question: What is the range of the penalty for not reporting emissions during the transitional period?
+    doc: impl_reg_2023_1773
+    difficulty: lexical
+    spans:
+      - "The amount of the penalty shall be between EUR 10 and EUR 50 per tonne of unreported emissions"
+  - id: cbam-r-005
+    question: Do transitional-period penalties stay fixed over time?
+    doc: impl_reg_2023_1773
+    difficulty: semantic
+    spans:
+      - "The penalty shall increase in accordance with the European index of consumer prices"
+  - id: cbam-r-006
+    question: How much of a complex good's embedded emissions may be based on estimates from the producer?
+    doc: impl_reg_2023_1773
+    difficulty: semantic
+    spans:
+      - "up to 20 % of the total embedded emissions of complex goods may be based on estimations made available by the operators of the installations"
+  - id: cbam-r-007
+    question: Until when could importers use other methods when they lacked the producer's emissions data?
+    doc: impl_reg_2023_1773
+    difficulty: semantic
+    spans:
+      - "until 31 July 2024 for each import of goods for which the reporting declarant does not have all the information"
+  - id: cbam-r-008
+    question: What identifier does a CBAM report get once it is submitted?
+    doc: impl_reg_2023_1773
+    difficulty: lexical
+    spans:
+      - "shall be allocated a unique Report ID"
+  - id: cbam-r-009
+    question: By what date each year must authorised declarants submit their annual CBAM declaration?
+    doc: reg_2023_956
+    difficulty: lexical
+    spans:
+      - "By 31 May of each year, and for the first time in 2027 for the year 2026, each authorised CBAM declarant shall use the CBAM registry"
+  - id: cbam-r-010
+    question: How many certificates must be surrendered each year?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "shall surrender via the CBAM registry a number of CBAM certificates that corresponds to the embedded emissions declared"
+  - id: cbam-r-011
+    question: What share of embedded emissions must be covered by certificates on the account at the end of each quarter?
+    doc: reg_2023_956
+    difficulty: lexical
+    spans:
+      - "at the end of each quarter corresponds to at least 80 % of the embedded emissions"
+  - id: cbam-r-012
+    question: How is the price of a CBAM certificate calculated?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "The Commission shall calculate the price of CBAM certificates as the average of the closing prices of EU ETS allowances on the auction platform"
+  - id: cbam-r-013
+    question: What price applies in a week with no ETS auctions?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "the price of CBAM certificates shall be the average of the closing prices of EU ETS allowances of the last week in which auctions on the auction platform took place"
+  - id: cbam-r-014
+    question: What is the deadline for asking the Member State to buy back excess certificates?
+    doc: reg_2023_956
+    difficulty: lexical
+    spans:
+      - "The authorised CBAM declarant shall submit the repurchase request by 30 June of each year during which CBAM certificates were surrendered"
+  - id: cbam-r-015
+    question: Is there a limit on how many certificates can be sold back?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "shall be limited to one third of the total number of CBAM certificates purchased by the authorised CBAM declarant during the previous calendar year"
+  - id: cbam-r-016
+    question: At what price are repurchased certificates bought back?
+    doc: reg_2023_956
+    difficulty: lexical
+    spans:
+      - "The repurchase price for each CBAM certificate shall be the price paid by the authorised CBAM declarant for that certificate at the time of purchase"
+  - id: cbam-r-017
+    question: What happens to old certificates that were never used?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "the Commission shall cancel any CBAM certificates that were purchased during the year before the previous calendar year"
+  - id: cbam-r-018
+    question: Are cancelled certificates refunded?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "Those CBAM certificates shall be cancelled without any compensation"
+  - id: cbam-r-019
+    question: What penalty applies to someone who imports CBAM goods without being an authorised declarant?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "be an amount from three to five times the penalty referred to in paragraph 1"
+  - id: cbam-r-020
+    question: How long does the consultation with other Member States on an authorisation application last at most?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "The consultation procedure shall involve the competent authorities in the other Member States and the Commission and shall not exceed 15 working days"
+  - id: cbam-r-021
+    question: For how long is a third-country installation's registration in the CBAM registry valid?
+    doc: reg_2023_956
+    difficulty: lexical
+    spans:
+      - "The registration shall be valid for a period of five years from the date of its notification to the operator of the installation"
+  - id: cbam-r-022
+    question: How far back can the Commission review a CBAM declaration?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "within the period ending with the fourth year after the year during which the CBAM declarations should have been submitted"
+  - id: cbam-r-023
+    question: Must an importer be authorised before importing CBAM goods?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "Any importer established in a Member State shall, prior to importing goods into the customs territory of the Union, apply for the status of authorised CBAM declarant"
+  - id: cbam-r-024
+    question: In what units are electricity and other goods reported in a CBAM report?
+    doc: reg_2023_956
+    difficulty: lexical
+    spans:
+      - "expressed in megawatt-hours for electricity and in tonnes for other goods"
+  - id: cbam-r-025
+    question: From what date do the rules on buying and surrendering certificates apply?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "Articles 21 to 27 and 31 shall apply from 1 January 2026"
+  - id: cbam-r-026
+    question: How are embedded emissions in imported electricity determined by default?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "Embedded emissions in imported electricity shall be determined by reference to default values in accordance with the method set out in point 4.2 of Annex IV"
+  - id: cbam-r-027
+    question: Is there a value below which small imports are exempt from CBAM?
+    doc: guidance_importers
+    difficulty: semantic
+    spans:
+      - "does not exceed EUR 150 per consignment"
+  - id: cbam-r-028
+    question: Which document do I need to identify myself for customs when applying for authorisation?
+    doc: reg_2023_956
+    difficulty: semantic
+    spans:
+      - "(b) EORI number"

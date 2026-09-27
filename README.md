@@ -104,11 +104,13 @@ make freeze PROFILE="+experiment=live"     # once, deliberately
 make eval PROFILE="+experiment=live"
 ```
 
-One thing has to exist first: an eval set for the real documents, under
-`data/eval/cbam/`. Gold evidence is a verbatim span of the corpus it came from,
-so the synthetic questions cannot be scored against the regulation, and the
-runner refuses to try rather than report the resulting zeros as a measurement
-(D-0050). `make gen-eval` drafts candidates and `make label` accepts them.
+One thing has to exist first: a reviewed eval set for the real documents.
+Gold evidence is a verbatim span of the corpus it came from, so the synthetic
+questions cannot be scored against the regulation, and the runner refuses to
+try rather than report the resulting zeros as a measurement (D-0050). Drafts
+are in `data/eval/cbam/`; `make seed PROFILE="+experiment=live"` materialises
+them and `make label PROFILE="+experiment=live" ARGS="label.mode=retrieval"`
+accepts or rejects each one.
 
 Always pass a profile as `PROFILE`, never inside `ARGS`: the Makefile already
 passes one, and two `+experiment` values do not compose.
@@ -459,9 +461,11 @@ Worst first.
    the CBAM instruments, marked as such in every file (D-0016). Shorter
    sentences, fewer cross-references, no 400-word provisions. The numbers here
    are optimistic against the real thing. `make corpus PROFILE="+experiment=live"`
-   does fetch the real instruments, and the manifest pins them, but switching
-   needs an eval set written against them -- the synthetic questions' gold spans
-   do not occur in the regulation -- and that set does not exist yet.
+   fetches the real instruments, byte-identical to the pinned hashes, and the
+   pipeline runs end to end on them. What is missing is a reviewed eval set:
+   `data/eval/cbam/` holds model-drafted questions whose evidence is verified
+   verbatim against the documents, and none is scored until a person accepts
+   it with `make label PROFILE="+experiment=live" ARGS="label.mode=retrieval"`.
 3. The measured generator makes no API call. The committed frontier uses the
    extractive baseline, so every quality figure is a floor and the cost axis is
    a projection rather than spend (D-0028). Relative ordering of retrieval
