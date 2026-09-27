@@ -1,0 +1,26 @@
+{
+  "answers_from": "reference",
+  "api_mode": "live",
+  "axes": [
+    "groundedness",
+    "relevance",
+    "citation_correctness"
+  ],
+  "generators": [
+    "reference"
+  ],
+  "judge_model": "qwen/qwen3.8-27b",
+  "judge_prompt": "judge/rubric_v1.md",
+  "judge_prompt_hash": "035548ced080f92991f0ed2fe8912ede87c0f81e5ec0d6b61ba1b9bc88c984eb",
+  "judge_provider": "api",
+  "note": null,
+  "scale_max": 5,
+  "scale_min": 1,
+  "stack": {
+    "chunker": "recursive_structural",
+    "corpus": "cbam (ab0fc00c7468)",
+    "embedder": "local / BAAI/bge-small-en-v1.5",
+    "index": "db0e88aed000",
+    "retriever": "hybrid (k=8)"
+  }
+}

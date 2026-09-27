@@ -20,7 +20,7 @@ it got better. This one is the other way round.
 > key (D-0009 in the decision log). The calibration section is different - its
 > headline scores came from a real LLM judge. A different judge is a different
 > instrument, so those numbers and the frontier's are never put in one table
-> (D-0051), and the two LLM-judged sweep cells are reported on their own. The
+> (D-0051), and the runs an LLM judged are reported on their own. The
 > harness is real and the numbers are real measurements; what they measure is
 > weaker than what this is designed to run on. Every substitution is a config
 > flag with its cost written down. The README itself is rendered from the
@@ -63,22 +63,40 @@ under both the hashed embedder and bge-small, plus the cross-encoder reranker
 |  | recursive/hybrid_rerank/k=10 | 0.812 | 0.893 | 0.693 | 5494.5 | 0.010967 |
 |  | recursive/dense/k=10/local | 0.811 | 0.857 | 0.707 | 32.5 | 0.011108 |
 
-The rule-based judges against the answer labels on this corpus
+The three judges against the answer labels on this corpus
 ([`reports/judge_calibration_cbam.md`](reports/judge_calibration_cbam.md)).
 Those labels are delegated, not an independent person's, so this says how
-consistently the rubric and the rules line up, not how a person would rate the
+consistently each judge and the rubric line up, not how a person would rate the
 answers:
 
 | judge | retriever | embedder | n | kappa groundedness | kappa relevance | kappa citation_correctness |
 | --- | --- | --- | --- | --- | --- | --- |
+| `qwen/qwen3.8-27b` | hybrid (k=8) | local / BAAI/bge-small-en-v1.5 | 12 | 0.341 | 0.333 | 0.676 |
 | `rule-based-v1` | hybrid (k=8) | local / BAAI/bge-small-en-v1.5 | 12 | -0.043 | 0.091 | 0.176 |
 | `rule-based-v2` | hybrid (k=8) | local / BAAI/bge-small-en-v1.5 | 12 | -0.043 | 0.091 | 0.200 |
 
 Each judge scored the answers against context from its own retrieval stack. Where the stacks differ, so did what the judges were shown, and the gap between two rows is not only a difference between judges.
 
-No LLM has run on this corpus yet. The live profiles (`+experiment=live`,
-`+experiment=live_groq`) are wired to it; what they wait for is an API key in
-the environment that runs them.
+All three scored the same twelve answers over the same retrieval stack, so the
+rows differ only by judge. The LLM judge, `qwen/qwen3.8-27b` on Groq's free tier,
+is the only one that tracks the rubric closely on real regulatory prose: citation
+correctness at 0.676 against
+0.200 for the better rule, and
+groundedness at 0.341 where both rules
+sit at -0.043. Its error runs the other way
+from the synthetic corpus: its mean citation score minus the labels' is
+-0.500, stricter rather than more generous.
+Reversing the order of the retrieved context changed groundedness on 3 of 12, relevance on 2 of 12 answers and no other score. At twelve
+items a single answer moves kappa noticeably, and the labels are delegated, so
+this ranks the instruments rather than validating any of them (D-0063).
+
+The live stack on this corpus is frozen too: `recursive_structural/hybrid/k=8` over
+bge-small, `openai/gpt-oss-20b` answering and `qwen/qwen3.8-27b` judging,
+held to `baseline.live_groq.json` -- composite 0.881, recall@k
+0.893, judge means 4.58 groundedness,
+4.67 relevance and 4.33 citation
+correctness over 12 answers. It is what the nightly job
+gates against when `EVALGATE_LIVE_PROFILE` is `+experiment=live_groq`.
 
 ## Architecture
 
@@ -246,11 +264,11 @@ retrieval worse", which is most changes. Live catches "the world moved under
 us", which is rarer and slower. Together they are what make it affordable to
 gate every PR on quality at all.
 
-Pull-request CI runs two gates. The offline one -- extractive generator,
-rule-based judge -- needs no cassettes at all, and it cannot see a citation
-regression, because the extractive generator cites correctly by construction.
-The second, `+experiment=llm_replay`, gates a real generator and a real judge
-from cassettes. `make record` arms it: with `GROQ_API_KEY` set it records the
+Pull-request CI runs two kinds of gate. The offline ones -- one per corpus,
+extractive generator, rule-based judge -- need no cassettes at all, and they
+cannot see a citation regression, because the extractive generator cites
+correctly by construction. The other, `+experiment=llm_replay`, gates a real
+generator and a real judge from cassettes. `make record` arms it: with `GROQ_API_KEY` set it records the
 cassettes and freezes `baseline.llm.json` in one pass, and the recording is a
 reviewable diff, so a change in what the model says is something a person looks
 at rather than a number that quietly shifts.
@@ -263,11 +281,14 @@ cold, identical back-to-back runs were up to 30% apart, wider than the
 threshold (D-0055). Quality is still compared to the frozen baseline, so it
 cannot ratchet down one small step per merge.
 
-*State of the cassettes in this repository:* empty, so the LLM gate reports
-itself not armed. Live calls have been made -- the Qwen judgments in the
-calibration section and two sweep cells came from Groq's free tier -- but in
-live mode, which records nothing. Arming the gate is one command for anyone
-with a key.
+*State of the cassettes in this repository:* 30 recorded calls,
+`openai/gpt-oss-20b` answering the synthetic answer set and `qwen/qwen3.8-27b`
+judging it, all on Groq's free tier. They reproduce `baseline.llm.json` --
+composite 0.938, citation correctness 4.60 -- so the LLM
+gate is armed and every pull request replays them. A change to retrieval, a
+prompt or a model misses every cassette it touches and fails until someone
+re-records with `make record`, which is the point: a new answer from the
+model is a diff for a person to read.
 
 ## Judge calibration findings
 
@@ -352,7 +373,7 @@ Full report with both frontier figures:
 over {chunker} x {retriever} x {k}, dense and hybrid under both the hashed
 embedder and bge-small, all judged by the rule-based judge. One row per
 measurement: BM25 ignores the embedder, so its two sweeps were one measurement
-taken twice and appear once (D-0053). 2 runs judged by the LLM
+taken twice and appear once (D-0053). 3 runs judged by the LLM
 judge are in the report's own section, not in this table. `*` marks a
 configuration on at least one frontier.
 
@@ -522,22 +543,27 @@ Worst first.
    a projection rather than spend (D-0028). Relative ordering of retrieval
    configurations is what the sweep measures and does not depend on what sits
    downstream, but the absolute quality column would move with a real one.
-   2 cells with an LLM generator exist, judged by the LLM judge,
+   3 cells with an LLM generator exist, judged by the LLM judge,
    and are reported separately.
-4. The LLM gate is not armed. Its profile, its CI job and `make record` exist,
-   but no cassettes have been recorded, so pull-request CI still gates only
-   the offline stack, which cannot see a citation regression.
+4. The LLM gate replays one recording, on the synthetic corpus. The cassettes
+   pin what `openai/gpt-oss-20b` said once, at temperature 0; if the hosted
+   model drifts after that, replay cannot see it -- only the nightly job or a
+   re-record will. Any change to retrieval or a prompt misses the cassettes it
+   touches and needs `make record` with a key before the gate can pass.
 5. The eval sets are too small. 15 retrieval slots and
    15 answer pairs, against targets of 120 and 150. At this size
    one item moves recall@k by 6.7 points, so anything smaller than
    that in the Pareto table is noise, and the gate's bootstrap interval says so
    on every run. `make gen-eval` drafts candidates and `make label` reviews
    them.
-6. The nightly live job cannot pass yet. It now runs -- it used to fail to
-   compose its own config every night (D-0049), and the real-corpus eval set it
-   needs now exists -- but it still needs a frozen live baseline and an API key
-   secret, and until both exist it keeps one issue open saying which is
-   missing.
+6. The nightly live job waits on two repository settings. Its eval set and
+   its Groq baseline now exist, but it runs Groq only once the repository
+   variable `EVALGATE_LIVE_PROFILE` is `+experiment=live_groq` and the
+   `GROQ_API_KEY` secret is set; until then it measures `+experiment=live`,
+   which has no baseline, and keeps one issue open saying so. Its p95 latency
+   includes Groq's response time, which a free tier does not hold steady, so
+   the latency check is the one most likely to trip on noise rather than on a
+   regression.
 7. Replayed latency is recorded latency. A replay run reports the latency
    measured when the cassette was recorded, not the time to read it back
    (D-0030). That is the honest choice - the alternative reports disk speed as

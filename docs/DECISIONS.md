@@ -1551,3 +1551,71 @@ retriever setting can repair.
 
 Cost: a second gate job, about two minutes, and a CI dependency on EUR-Lex
 being reachable the first time a manifest is seen.
+
+## D-0063 -- An LLM judge on the real corpus, an armed replay gate, and a frozen live baseline
+
+2026-09-27, post-M6
+
+Three things that needed an API key now exist, all measured on Groq's free
+tier with `qwen/qwen3.8-27b` judging and `openai/gpt-oss-20b` answering:
+
+- `data/eval/cbam/judgments/qwen_qwen3.8-27b.jsonl`, the LLM judge's scores
+  for the twelve real-corpus answers with their position-swap repeats, from
+  `make judge PROFILE="+experiment=live_groq"`. They were judged over the same
+  stack as the two rule-based judges' scores -- recursive_structural chunks,
+  hybrid retrieval at k=8, bge-small -- so on this corpus the three rows of
+  the comparison differ only by judge.
+- `tests/cassettes/` (30 calls) and `baseline.llm.json`, from `make record`.
+  The LLM replay gate is armed. Replaying them with no key and no reachable
+  network passes with a zero delta, so the recording is complete.
+- `baseline.live_groq.json` and its run, from
+  `make freeze PROFILE="+experiment=live_groq"`: composite 0.881, recall@k
+  0.893 over 28 retrieval questions and 12 answers.
+
+What the judge shows on the real corpus: against the delegated labels its
+kappa is 0.341 groundedness, 0.333 relevance and 0.676 citation correctness,
+where neither rule gets above -0.043, 0.091 and 0.200. It is stricter than the
+labels on every axis (mean signed error -0.167, -0.583, -0.500), the opposite
+lean from the synthetic corpus, where it credited citations the labeller
+rejected. Its largest disagreement is cbam-a-006, an answer that invents a
+national price-setting mechanism: the labels call it fully relevant and the
+judge scores relevance 1, folding correctness into an axis the rubric keeps
+apart. Reversing the context order moved groundedness on 3 of 12 answers and
+relevance on 2, and citation correctness correlates with answer length (rho
+0.664, p 0.019); both are in the calibration report and neither is acted on at
+n=12.
+
+The labels stay delegated (D-0061), so this is agreement with the drafting
+process, not with a person. It is still a fair ranking of three instruments
+over one stack, and that is how the README words it.
+
+The replay gate records the synthetic corpus over the hashed embedder, as
+`+experiment=llm_replay` has always said it would: pull-request CI must not
+fetch documents or install torch, and a cassette is keyed on the exact prompt,
+retrieved text included. Its composite of 0.938 and the offline baseline's
+0.828 are different judges' units and are never put side by side (D-0051).
+
+The live baseline was frozen on a development container, not on a GitHub
+runner, and its p95 latency is mostly Groq's generation time. The nightly job
+compares latency to this baseline, since it has no base commit to measure on
+the same runner, so latency is the check most likely to trip on noise. The
+threshold is left where it is: if the nightly fails on latency alone, the fix
+is a same-runner reference for the live job as D-0055 gave the pull-request
+gate, not a wider limit.
+
+Fetching the corpus for this found two things. EUR-Lex answered 202 with an
+empty body for Regulation 2023/956 through all seven retries of D-0062's
+schedule; a retry a few minutes later returned the pinned bytes exactly
+(SHA256 5cd8fa27...). And the failed fetch rewrote `data/corpus/manifest.json`
+with the regulation recorded as an error, over the committed pin of the same
+corpus. D-0049's guard refuses only a manifest that pins a *different* corpus.
+In CI that rewrite changes the corpus hash and the gate refuses, which is
+safe; on a workstation it leaves a modified pin behind that a careless commit
+would carry. It was restored from git here, and is not fixed in this change.
+
+Cost: about 90,000 tokens of the judge's daily quota for the judgments alone,
+and a recording that has to be redone -- with a key -- whenever retrieval, a
+prompt or a model changes on the replayed profile. The nightly still runs
+Anthropic's profile until the repository variable `EVALGATE_LIVE_PROFILE` is
+set to `+experiment=live_groq` and the `GROQ_API_KEY` secret exists; both are
+repository settings, not files.

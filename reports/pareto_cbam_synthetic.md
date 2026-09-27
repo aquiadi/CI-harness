@@ -110,5 +110,6 @@ These runs are not comparable to the table above -- a different judge, corpus, p
 
 | config | generator | quality | recall@k | grounded | relevant | citations | p95 ms | projected $/q |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| fixed/hybrid/k=10 | api / openai/gpt-oss-20b | 0.938 | 0.867 | 4.93 | 5.00 | 4.60 | 1502.4 | 0.016079 |
 | fixed/dense/k=3 | api / openai/gpt-oss-20b | 0.847 | 0.533 | 4.93 | 5.00 | 4.27 | 1603.1 | 0.007142 |
 | fixed/dense/k=5 | api / openai/gpt-oss-20b | 0.815 | 0.667 | 4.73 | 4.73 | 3.87 | 1966.5 | 0.009878 |

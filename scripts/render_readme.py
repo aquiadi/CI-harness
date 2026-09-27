@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from omegaconf import DictConfig
 from rich.console import Console
 
 from evalgate.config import JudgeConfig, load_config, resolve_path, typed_node
@@ -232,7 +233,15 @@ def _real_values(root: Path) -> dict[str, str]:
     sets = load_judgment_sets(resolve_path(cfg, "evalsets.judgments_dir"))
     labels = read_jsonl(resolve_path(cfg, "evalsets.human_labels_path"), HumanLabel)
     label_sets = partition_labels(labels)
+    # The same per-judge facts the synthetic section quotes, prefixed, so the
+    # real-corpus prose can cite a kappa without typing it.
+    facts = {
+        f"real_{key}": value
+        for key, value in _calibration_facts(sets, labels, judge).items()
+        if key != "judge_comparison"
+    }
     values = {
+        **facts,
         "real_documents": str(len(manifest.ok_entries)) if manifest else "0",
         "real_corpus_hash": short(manifest.corpus_hash()) if manifest else "none",
         "real_n_configs": str(len(summaries)),
@@ -261,6 +270,56 @@ def _real_values(root: Path) -> dict[str, str]:
             }
         )
     return values
+
+
+NOT_FROZEN = "not frozen"
+FROZEN_KEYS = (
+    "quality",
+    "recall",
+    "p95_ms",
+    "grounded",
+    "relevant",
+    "citations",
+    "generator",
+    "judge",
+    "config",
+    "n_answers",
+)
+
+
+def _frozen_values(overrides: list[str], prefix: str) -> dict[str, str]:
+    """The headline of another profile's frozen baseline, or 'not frozen' for each value."""
+    cfg = load_config(overrides=overrides)
+    path = resolve_path(cfg, "gate.baseline_path")
+    if not path.is_file():
+        return {f"{prefix}_{key}": NOT_FROZEN for key in FROZEN_KEYS}
+    frozen = read_baseline(path)
+    metrics, fingerprint = frozen.metrics, frozen.fingerprint
+    return {
+        f"{prefix}_quality": number(metrics.get("composite_quality")),
+        f"{prefix}_recall": number(metrics.get("recall_at_k")),
+        f"{prefix}_p95_ms": number(float(metrics.get("p95_latency_s", 0.0)) * MS, 1),
+        f"{prefix}_grounded": number(metrics.get("judge_groundedness"), 2),
+        f"{prefix}_relevant": number(metrics.get("judge_relevance"), 2),
+        f"{prefix}_citations": number(metrics.get("judge_citation_correctness"), 2),
+        f"{prefix}_generator": str(fingerprint.get("generator", {}).get("model", "?")),
+        f"{prefix}_judge": str(fingerprint.get("judge", {}).get("model", "?")),
+        f"{prefix}_config": "/".join(
+            str(fingerprint.get(node, {}).get("name", "?")) for node in ("chunker", "retriever")
+        )
+        + f"/k={metrics.get('k', '?')}",
+        f"{prefix}_n_answers": str(metrics.get("n_answers", "?")),
+    }
+
+
+LLM_PROFILE = ["+experiment=llm_replay"]
+LIVE_GROQ_PROFILE = ["+experiment=live_groq"]
+
+
+def _cassette_count(cfg: DictConfig) -> str:
+    """How many recorded calls the replay profiles can serve."""
+    directory = resolve_path(cfg, "paths.cassette_dir")
+    return str(len(list(directory.glob("*.json")))) if directory.is_dir() else "0"
 
 
 DEFAULT_OVERRIDES = ["+experiment=baseline"]
@@ -301,6 +360,9 @@ def build_values(root: Path, overrides: list[str] | None = None) -> dict[str, An
 
     return {
         **_real_values(root),
+        **_frozen_values(LLM_PROFILE, "llm"),
+        **_frozen_values(LIVE_GROQ_PROFILE, "live_groq"),
+        "n_cassettes": _cassette_count(cfg),
         **_calibration_facts(judgment_sets, labels, judge),
         **_sweep_facts(summaries, int(metrics.get("n_retrieval", 0) or 0)),
         "quality": number(metrics.get("composite_quality")),

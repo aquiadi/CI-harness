@@ -1,0 +1,89 @@
+{
+  "key": "f6f9b856bbe7c0059c1d6164e65bc10811ed27443d1d290bf063135ed9aa56e8",
+  "recorded_at": "2026-09-27T12:42:52Z",
+  "request": {
+    "max_tokens": 400,
+    "model": "qwen/qwen3.8-27b",
+    "prompt": "# Answer judge rubric, v1\n\nYou are grading one answer produced by a retrieval-augmented CBAM compliance\nassistant. You are not answering the question yourself and you are not being\nasked whether you like the answer. You are applying three rubrics.\n\nGrade only against the context provided. If the context is thin, that is not\nthe answer's fault on the relevance axis, but an answer that invents content to\ncompensate must still be marked down on groundedness.\n\n## Axes\n\n### groundedness (1-5)\n\nIs every factual claim supported by the retrieved context?\n\n- 5: every claim is supported by the context; no unsupported specifics.\n- 4: all substantive claims supported; a minor connective or framing statement\n  goes slightly beyond the context.\n- 3: mostly supported, but at least one substantive claim (a number, a date, a\n  duty holder, a scope boundary) is not in the context.\n- 2: several substantive claims unsupported, or one claim contradicts the\n  context.\n- 1: largely fabricated, or contradicts the context in a way that would mislead\n  a compliance reader.\n\n### relevance (1-5)\n\nDoes the answer address the question that was asked?\n\n- 5: answers exactly the question asked, at the right scope.\n- 4: answers the question with some unrequested material.\n- 3: partially answers, or answers a neighbouring question.\n- 2: touches the topic but does not answer the question.\n- 1: off topic, or refuses when the context plainly supports an answer.\n\nA correct, well-evidenced statement that the context is insufficient scores 5\nwhen the context genuinely is insufficient, and 1 when it is not.\n\n### citation_correctness (1-5)\n\nDo the bracketed chunk ids exist in the context, and does each cited chunk\nactually support the claim it is attached to?\n\n- 5: every claim carries a citation, every id exists, every cited chunk\n  supports its claim.\n- 4: all ids exist and support their claims; one claim is missing a citation.\n- 3: ids exist, but at least one is attached to a claim it does not support.\n- 2: a cited id does not appear in the context, or most claims are uncited.\n- 1: no citations, or citations are systematically wrong.\n\n## Input\n\nQuestion:\nWhat penalty applies for not submitting a report?\n\nRetrieved context:\n[syn_guidance_operators#0000] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. It is not)\nSYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. It is not\nCommission guidance and carries no authority.\n\nSynthetic guidance for installation operators outside the customs territory\n\n1 Why you are being asked for data\nAn importer in the customs territory has to report the emissions embedded in the\ngoods it buys from you. It cannot do that without data from the installation\nwhere the goods were made. You are not directly subject to the synthetic\nRegulation, and no penalty under it applies to you, but the importer's ability\nto keep buying from you depends on the data you provide.\n\n2 What an installation is\nA stationary technical unit where a production process is carried out. If your\nsite runs several production processes, each is reported separately, with its\nown activity level and its own attributed emissions.\n\n3 Identifying your installation\nGive the importer the installation name and address, the geographical\ncoordinates of the main emission source, and the United Nations code for trade\nand transport locations for the site. These identify the installation across\nreports from\n\n[syn_impl_reg_reporting#0004] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. Not the)\nallow the quantity of imported goods to be determined. A CBAM report is\nincorrect where a mandatory data field contains information that does not\ncorrespond to the goods imported.\n\nArticle 9\nCorrection procedure initiated by the competent authority\nWhere the competent authority finds that a CBAM report is incomplete or\nincorrect, it shall communicate the assessment to the reporting declarant and\nrequest the declarant to submit a corrected report. The declarant shall be given\na period of no less than 15 and no more than 30 calendar days to submit the\ncorrected report.\n\nArticle 10\nPenalties\nA penalty of between EUR 10 and EUR 50 per tonne of unreported embedded\nemissions shall be imposed where the reporting declarant has not taken the\nnecessary steps to comply with the obligation to submit a CBAM report, or where\nthe report is incorrect or incomplete and the declarant has not taken the\nnecessary steps to correct it following the correction procedure. The penalty\nshall be higher where more than two incomplete or incorrect reports have been\nsubmitted in a row, or where the failure to report lasts for more than six\n\n[syn_guidance_importers#0001] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. It is not)\nimporter and the reporting obligation is not yours.\n\n3 What changes and when\nFrom 1 October 2023 to 31 December 2025 you only report. You do not buy\ncertificates and you do not pay anything under the mechanism. From 1 January\n2026 you must be an authorised declarant before you import, you submit an annual\ndeclaration, and you surrender certificates for the emissions you declared.\n\n4 Quarterly reporting during the transitional period\nYou submit one report per quarter through the transitional registry, within one\nmonth of the quarter ending. So the report for January to March is due by 30\nApril. You report how much of each good you imported, where it was made, which\nproduction route was used, and the emissions embedded in it, split into direct\nand indirect. You also report any carbon price you already paid in the country\nwhere the goods were made.\n\n5 If you get a report wrong\nYou can change a submitted report yourself for two months after the quarter\nends. For the first two reporting periods only, you have longer:\n\n[syn_reg_main#0000] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. Not the)\nSYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. Not the\ntext of Regulation (EU) 2023/956 or of any other instrument.\n\nSynthetic Regulation on a carbon border adjustment mechanism\n\nCHAPTER I\nSubject matter, scope and definitions\n\nArticle 1\nSubject matter\nThis synthetic Regulation establishes a carbon border adjustment mechanism for\naddressing embedded emissions in the goods listed in Annex I on their\nimportation into the customs territory, with a view to preventing the risk of\ncarbon leakage and thereby reducing global carbon emissions. The mechanism\napplies in parallel with the emissions trading system and is designed so that\nimported goods bear a carbon price equivalent to the price borne by goods\nproduced within the customs territory.\n\nArticle 2\nScope\nThis Regulation applies to goods listed in Annex I originating in a third\ncountry, where those goods, or processed products from those goods resulting\nfrom the inward processing procedure, are imported into the customs territory.\nIt does not apply to goods whose total intrinsic value, per consignment, does\nnot exceed EUR 150. It does not apply to\n\n[syn_guidance_importers#0005] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. It is not)\nthe country of origin for the same emissions. You have to have actually\npaid it, and there must not have been a rebate or other compensation on export.\nKeep documentation, certified by an independent person.\n\n11 Penalties during the transitional period\nIf you do not report, or you report something incomplete or incorrect and do not\nfix it when asked, the penalty is between EUR 10 and EUR 50 per tonne of\nunreported emissions. It goes up if you have submitted more than two bad reports\nin a row or if you have not reported for more than six months. The authority\ntakes into account how much was missing, whether you cooperated, and whether it\nwas deliberate.\n\n12 Common mistakes\nReporting electricity in tonnes rather than megawatt hours. Assuming the\nestimated values published for the transitional period remain available after 31\nJuly 2024. Assuming indirect emissions are reported for iron and steel during\nthe transitional period, when only direct emissions are. Forgetting that the\nEUR 150 threshold is per consignment, not per year.\n\n[syn_guidance_importers#0000] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. It is not)\nSYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. It is not\nCommission guidance and carries no authority.\n\nSynthetic guidance for importers of goods covered by the mechanism\n\n1 Purpose of this guidance\nThis guidance explains in plain language what an importer has to do under the\nsynthetic Regulation and the synthetic Implementing Regulation. Where this\nguidance and those documents differ, the documents govern. It is written for\npeople who import goods and who are not lawyers.\n\n2 Do the rules apply to me\nThey apply if you import cement, electricity, fertilisers, iron and steel,\naluminium or hydrogen into the customs territory. They do not apply if the total\nvalue of a consignment is EUR 150 or less. They do not apply to goods you carry\nin personal baggage below that value, or to goods for military use. If you buy\ncovered goods from a supplier inside the customs territory, you are not the\nimporter and the reporting obligation is not yours.\n\n3 What changes and when\nFrom 1 October 2023 to 31 December 2025 you only\n\n[syn_impl_reg_reporting#0001] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. Not the)\nand by the geographical\ncoordinates of the main emission source; the production routes used; the total\nembedded direct emissions and the total embedded indirect emissions, expressed\nin tonnes of carbon dioxide equivalent per tonne of goods; and the carbon price\ndue in the country of origin, together with a description of any rebate or other\nform of compensation available.\n\nArticle 3\nSubmission of the CBAM report\nThe reporting declarant shall submit the CBAM report through the CBAM\ntransitional registry no later than one month after the end of the quarter to\nwhich it relates. A report shall be considered submitted when it has been\nassigned a unique report identification number by the registry.\n\nArticle 4\nModification and correction of reports\nThe reporting declarant may modify a submitted CBAM report until two months\nafter the end of the relevant reporting quarter. By way of derogation, the\nreporting declarant may modify the CBAM reports for the first two reporting\nperiods until the submission deadline of the third CBAM report. Beyond those\ndeadlines, the reporting declarant may request the competent authority to\ncorrect a report within one\n\n[syn_faq#0005] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. Not)\ncount\nNo. Goods originating in Iceland, Liechtenstein, Norway and Switzerland are\noutside scope, because those countries participate in the emissions trading\nsystem or have a system linked to it.\n\nQ14 What exactly is an installation\nA stationary technical unit where a production process is carried out. It is\nidentified by name, address, geographical coordinates of the main emission\nsource, and the United Nations trade and transport location code. Use the same\nidentifiers in every report, because that is how emissions from one site are\nreconciled across different importers.\n\n[syn_guidance_operators#0003] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. It is not)\nthat now is cheaper than preparing for it in 2027.\n\n9 Carbon prices you already pay\nIf your emissions are subject to a carbon price where you are, tell the importer\nthe price due for the emissions concerned and whether any rebate or other\ncompensation is available on export. The importer can only claim a reduction\nwhere the price was effectively paid and no export rebate was available.\n\n10 What happens if you provide nothing\nThe importer records the request and the absence of a response, and falls back\nto default values. Default values are set at the average emission intensity of\nyour country for that type of goods, increased by a mark-up. If reliable country\ndata is not available, they are based on the average of the ten worst performing\ninstallations in the customs territory. Both are usually worse for you than your\nactual figures.\n\n[syn_guidance_importers#0002] (SYNTHETIC DOCUMENT - NOT LAW. Written for the evalgate test harness. It is not)\na submitted report yourself for two months after the quarter\nends. For the first two reporting periods only, you have longer: you can change\nthose reports up to the deadline for the third report. After that you have to\nask the competent authority, which can allow a correction within one year of the\nend of the quarter if you can show the registry would not let you make the\nchange or that the information only became available later.\n\n6 Getting emissions data from your supplier\nAsk the operator of the installation for the data listed in Annex I of the\nsynthetic Implementing Regulation. If they will not give it to you, keep a\nrecord of the request and of the fact you got no answer, and say in your report\nwhich method you used instead. Until the end of 2024 you have several methods\navailable, including a monitoring scheme run at the installation. From 1 January\n2025 you must use the method in Annex III of the synthetic Regulation, with a\nnarrow allowance for estimated values covering at most 20 per cent of\n\nAnswer under evaluation:\nA penalty of **between EUR\u202f10 and EUR\u202f50 per tonne of unreported embedded emissions** shall be imposed where the reporting declarant has not taken the necessary steps to comply with the obligation to submit a CBAM report. The penalty is higher where more than two incomplete or incorrect reports have been submitted in a row, or where the failure to report lasts for more than six months. [syn_reg_main#0000] [syn_guidance_importers#0005]\n\n## Output\n\nCall the `submit_judgment` tool exactly once. Every rationale must name the\nspecific span or chunk id that drove the score. Do not write prose outside the\ntool call.\n",
+    "prompt_hash": "035548ced080f92991f0ed2fe8912ede87c0f81e5ec0d6b61ba1b9bc88c984eb",
+    "purpose": "judge",
+    "system": null,
+    "temperature": 0.0,
+    "tool": {
+      "description": "Submit the rubric scores and their justifications for one answer.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "citation_correctness": {
+            "description": "Integer score for citation_correctness, from 1 (worst) to 5 (best).",
+            "maximum": 5,
+            "minimum": 1,
+            "title": "Citation Correctness",
+            "type": "integer"
+          },
+          "citation_correctness_rationale": {
+            "description": "One or two sentences justifying the citation_correctness score, naming the specific chunk id or quoted span that drove it.",
+            "minLength": 1,
+            "title": "Citation Correctness Rationale",
+            "type": "string"
+          },
+          "groundedness": {
+            "description": "Integer score for groundedness, from 1 (worst) to 5 (best).",
+            "maximum": 5,
+            "minimum": 1,
+            "title": "Groundedness",
+            "type": "integer"
+          },
+          "groundedness_rationale": {
+            "description": "One or two sentences justifying the groundedness score, naming the specific chunk id or quoted span that drove it.",
+            "minLength": 1,
+            "title": "Groundedness Rationale",
+            "type": "string"
+          },
+          "relevance": {
+            "description": "Integer score for relevance, from 1 (worst) to 5 (best).",
+            "maximum": 5,
+            "minimum": 1,
+            "title": "Relevance",
+            "type": "integer"
+          },
+          "relevance_rationale": {
+            "description": "One or two sentences justifying the relevance score, naming the specific chunk id or quoted span that drove it.",
+            "minLength": 1,
+            "title": "Relevance Rationale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "groundedness",
+          "groundedness_rationale",
+          "relevance",
+          "relevance_rationale",
+          "citation_correctness",
+          "citation_correctness_rationale"
+        ],
+        "type": "object"
+      },
+      "name": "submit_judgment",
+      "strict": true
+    }
+  },
+  "response": {
+    "attempts": 2,
+    "extra": {},
+    "input_tokens": 3851,
+    "latency_s": 1.647716,
+    "model": "qwen/qwen3.8-27b",
+    "output_tokens": 165,
+    "stop_reason": "tool_calls",
+    "text": "",
+    "tool_input": {
+      "citation_correctness": 3,
+      "citation_correctness_rationale": "EUR 10 and EUR 50 per tonne of unreported embedded emissions",
+      "groundedness": 5,
+      "groundedness_rationale": "EUR 10 and EUR 50 per tonne of unreported embedded emissions",
+      "relevance": 5,
+      "relevance_rationale": "more than two incomplete or incorrect reports have been submitted in a row, or where the failure to report lasts for more than six"
+    }
+  }
+}

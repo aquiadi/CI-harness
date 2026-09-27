@@ -20,7 +20,7 @@ it got better. This one is the other way round.
 > key (D-0009 in the decision log). The calibration section is different - its
 > headline scores came from a real LLM judge. A different judge is a different
 > instrument, so those numbers and the frontier's are never put in one table
-> (D-0051), and the two LLM-judged sweep cells are reported on their own. The
+> (D-0051), and the runs an LLM judged are reported on their own. The
 > harness is real and the numbers are real measurements; what they measure is
 > weaker than what this is designed to run on. Every substitution is a config
 > flag with its cost written down. The README itself is rendered from the
@@ -54,17 +54,34 @@ under both the hashed embedder and bge-small, plus the cross-encoder reranker
 
 ${real_pareto_table}
 
-The rule-based judges against the answer labels on this corpus
+The three judges against the answer labels on this corpus
 ([`reports/judge_calibration_cbam.md`](reports/judge_calibration_cbam.md)).
 Those labels are delegated, not an independent person's, so this says how
-consistently the rubric and the rules line up, not how a person would rate the
+consistently each judge and the rubric line up, not how a person would rate the
 answers:
 
 ${real_judge_comparison}
 
-No LLM has run on this corpus yet. The live profiles (`+experiment=live`,
-`+experiment=live_groq`) are wired to it; what they wait for is an API key in
-the environment that runs them.
+All three scored the same twelve answers over the same retrieval stack, so the
+rows differ only by judge. The LLM judge, `qwen/qwen3.8-27b` on Groq's free tier,
+is the only one that tracks the rubric closely on real regulatory prose: citation
+correctness at ${real_kappa_qwen_qwen3_8_27b_citation_correctness} against
+${real_kappa_rule_based_v2_citation_correctness} for the better rule, and
+groundedness at ${real_kappa_qwen_qwen3_8_27b_groundedness} where both rules
+sit at ${real_kappa_rule_based_v1_groundedness}. Its error runs the other way
+from the synthetic corpus: its mean citation score minus the labels' is
+${real_bias_citation_correctness}, stricter rather than more generous.
+Reversing the order of the retrieved context ${real_swap_summary}. At twelve
+items a single answer moves kappa noticeably, and the labels are delegated, so
+this ranks the instruments rather than validating any of them (D-0063).
+
+The live stack on this corpus is frozen too: `${live_groq_config}` over
+bge-small, `${live_groq_generator}` answering and `${live_groq_judge}` judging,
+held to `baseline.live_groq.json` -- composite ${live_groq_quality}, recall@k
+${live_groq_recall}, judge means ${live_groq_grounded} groundedness,
+${live_groq_relevant} relevance and ${live_groq_citations} citation
+correctness over ${live_groq_n_answers} answers. It is what the nightly job
+gates against when `EVALGATE_LIVE_PROFILE` is `+experiment=live_groq`.
 
 ## Architecture
 
@@ -232,11 +249,11 @@ retrieval worse", which is most changes. Live catches "the world moved under
 us", which is rarer and slower. Together they are what make it affordable to
 gate every PR on quality at all.
 
-Pull-request CI runs two gates. The offline one -- extractive generator,
-rule-based judge -- needs no cassettes at all, and it cannot see a citation
-regression, because the extractive generator cites correctly by construction.
-The second, `+experiment=llm_replay`, gates a real generator and a real judge
-from cassettes. `make record` arms it: with `GROQ_API_KEY` set it records the
+Pull-request CI runs two kinds of gate. The offline ones -- one per corpus,
+extractive generator, rule-based judge -- need no cassettes at all, and they
+cannot see a citation regression, because the extractive generator cites
+correctly by construction. The other, `+experiment=llm_replay`, gates a real
+generator and a real judge from cassettes. `make record` arms it: with `GROQ_API_KEY` set it records the
 cassettes and freezes `baseline.llm.json` in one pass, and the recording is a
 reviewable diff, so a change in what the model says is something a person looks
 at rather than a number that quietly shifts.
@@ -249,11 +266,14 @@ cold, identical back-to-back runs were up to 30% apart, wider than the
 threshold (D-0055). Quality is still compared to the frozen baseline, so it
 cannot ratchet down one small step per merge.
 
-*State of the cassettes in this repository:* empty, so the LLM gate reports
-itself not armed. Live calls have been made -- the Qwen judgments in the
-calibration section and two sweep cells came from Groq's free tier -- but in
-live mode, which records nothing. Arming the gate is one command for anyone
-with a key.
+*State of the cassettes in this repository:* ${n_cassettes} recorded calls,
+`${llm_generator}` answering the synthetic answer set and `${llm_judge}`
+judging it, all on Groq's free tier. They reproduce `baseline.llm.json` --
+composite ${llm_quality}, citation correctness ${llm_citations} -- so the LLM
+gate is armed and every pull request replays them. A change to retrieval, a
+prompt or a model misses every cassette it touches and fails until someone
+re-records with `make record`, which is the point: a new answer from the
+model is a diff for a person to read.
 
 ## Judge calibration findings
 
@@ -491,20 +511,25 @@ Worst first.
    downstream, but the absolute quality column would move with a real one.
    ${n_excluded} cells with an LLM generator exist, judged by the LLM judge,
    and are reported separately.
-4. The LLM gate is not armed. Its profile, its CI job and `make record` exist,
-   but no cassettes have been recorded, so pull-request CI still gates only
-   the offline stack, which cannot see a citation regression.
+4. The LLM gate replays one recording, on the synthetic corpus. The cassettes
+   pin what `${llm_generator}` said once, at temperature 0; if the hosted
+   model drifts after that, replay cannot see it -- only the nightly job or a
+   re-record will. Any change to retrieval or a prompt misses the cassettes it
+   touches and needs `make record` with a key before the gate can pass.
 5. The eval sets are too small. ${retrieval_slots} retrieval slots and
    ${answer_slots} answer pairs, against targets of 120 and 150. At this size
    one item moves recall@k by ${recall_step} points, so anything smaller than
    that in the Pareto table is noise, and the gate's bootstrap interval says so
    on every run. `make gen-eval` drafts candidates and `make label` reviews
    them.
-6. The nightly live job cannot pass yet. It now runs -- it used to fail to
-   compose its own config every night (D-0049), and the real-corpus eval set it
-   needs now exists -- but it still needs a frozen live baseline and an API key
-   secret, and until both exist it keeps one issue open saying which is
-   missing.
+6. The nightly live job waits on two repository settings. Its eval set and
+   its Groq baseline now exist, but it runs Groq only once the repository
+   variable `EVALGATE_LIVE_PROFILE` is `+experiment=live_groq` and the
+   `GROQ_API_KEY` secret is set; until then it measures `+experiment=live`,
+   which has no baseline, and keeps one issue open saying so. Its p95 latency
+   includes Groq's response time, which a free tier does not hold steady, so
+   the latency check is the one most likely to trip on noise rather than on a
+   regression.
 7. Replayed latency is recorded latency. A replay run reports the latency
    measured when the cassette was recorded, not the time to read it back
    (D-0030). That is the honest choice - the alternative reports disk speed as

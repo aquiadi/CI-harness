@@ -102,3 +102,13 @@ Measured cost is zero for every run above because the generator makes no API cal
 | latency | section/hybrid/k=10/local | 0.821 | 0.013603 | 31.1 |
 | latency | fixed/bm25/k=10 | 0.799 | 0.011132 | 0.4 |
 | latency | recursive/bm25/k=10 | 0.792 | 0.011622 | 0.4 |
+
+## Measured on different ground
+
+These runs are not comparable to the table above -- a different judge, corpus, prompt or eval set -- so each group gets a table of its own and no frontier is drawn across groups. A quality score from one judge is not in the same units as a quality score from another.
+
+### Different judge `api / qwen/qwen3.8-27b`
+
+| config | generator | quality | recall@k | grounded | relevant | citations | p95 ms | projected $/q |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| recursive/hybrid/k=8 | api / openai/gpt-oss-20b | 0.881 | 0.893 | 4.58 | 4.67 | 4.33 | 1287.9 | 0.013732 |
