@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from scripts.fetch_corpus import _reuse_existing, body_rejection, main, refusal
+from scripts.fetch_corpus import _reuse_existing, body_rejection, main, refusal, retry_delay
 
 from evalgate.config import CorpusConfig, SourceDocument
 from evalgate.corpus.manifest import CorpusManifest
@@ -123,3 +123,17 @@ def test_the_default_profile_leaves_the_committed_manifest_untouched(
     )
     assert code != 0
     assert manifest.read_text(encoding="utf-8") == original
+
+
+def test_the_retry_schedule_outlasts_eur_lex_rendering(repo_root: Path) -> None:
+    """Three attempts in three seconds all saw 202 from a CI runner."""
+    from evalgate.config import load_config
+
+    cfg = load_config(overrides=["+experiment=real"])
+    corpus = cfg.corpus
+    waited = sum(
+        retry_delay(attempt, corpus.backoff_initial_s, corpus.backoff_max_s)
+        for attempt in range(1, corpus.max_attempts)
+    )
+    assert waited >= 120.0
+    assert retry_delay(10, 2.0, 60.0) == 60.0, "capped, not unbounded"

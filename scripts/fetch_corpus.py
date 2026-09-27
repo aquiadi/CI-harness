@@ -125,11 +125,24 @@ def _reuse_existing(
     )
 
 
+def retry_delay(attempt: int, initial_s: float, max_s: float) -> float:
+    """Exponential backoff after the given attempt, capped.
+
+    EUR-Lex answers 202 while it renders a PDF, and from a cold cache that can
+    take tens of seconds -- a CI runner saw three attempts inside three seconds
+    all come back 202. The schedule has to outlast the rendering, not just a
+    transient error.
+    """
+    return float(min(max_s, initial_s * 2 ** (attempt - 1)))
+
+
 def fetch_one(
     client: httpx.Client,
     source: SourceDocument,
     dest_dir: Path,
     max_attempts: int,
+    backoff_initial_s: float = 1.0,
+    backoff_max_s: float = 30.0,
 ) -> ManifestEntry:
     """Fetch one source document, returning its manifest entry either way."""
     path = dest_dir / source.filename
@@ -180,7 +193,7 @@ def fetch_one(
                 last_error = f"HTTP {response.status_code}"
 
         if attempt < max_attempts:
-            delay = float(2 ** (attempt - 1))
+            delay = retry_delay(attempt, backoff_initial_s, backoff_max_s)
             console.print(
                 f"[yellow]{source.id}: {last_error}; "
                 f"retry {attempt}/{max_attempts - 1} in {delay:.0f}s[/yellow]"
@@ -249,7 +262,16 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     entries.append(reused)
                     continue
-            entries.append(fetch_one(client, source, dest_dir, corpus.max_attempts))
+            entries.append(
+                fetch_one(
+                    client,
+                    source,
+                    dest_dir,
+                    corpus.max_attempts,
+                    corpus.backoff_initial_s,
+                    corpus.backoff_max_s,
+                )
+            )
 
     manifest = CorpusManifest(corpus=corpus.name, generated_at=utc_now_iso(), entries=entries)
     write_manifest(manifest_path, manifest)

@@ -71,6 +71,9 @@ class CorpusConfig:
     exclude: list[str] = field(default_factory=list)
     request_timeout_s: float = 60.0
     max_attempts: int = 3
+    # Delay after the first failed attempt, doubling each time up to the cap.
+    backoff_initial_s: float = 1.0
+    backoff_max_s: float = 30.0
     refetch: bool = False
     user_agent: str = "evalgate-corpus-fetcher/0.1 (+https://github.com/aquiadi/CI-harness)"
 

@@ -18,7 +18,12 @@
 # assuming: since the body is now validated, an OK line means a real PDF.
 name: cbam
 request_timeout_s: 120.0
-max_attempts: 3
+# EUR-Lex answers 202 with an empty body while it renders a PDF, and from a
+# cold cache that outlasted three attempts in three seconds on a CI runner.
+# 2, 4, 8, 16, 32, 60, 60 seconds: about three minutes before giving up.
+max_attempts: 8
+backoff_initial_s: 2.0
+backoff_max_s: 60.0
 sources:
   - id: reg_2023_956
     title: "Regulation (EU) 2023/956 establishing a carbon border adjustment mechanism"
