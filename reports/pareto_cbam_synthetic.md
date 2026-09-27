@@ -74,13 +74,13 @@
 Measured cost is zero for every run above because the generator makes no API call, so the cost frontier is plotted on projected cost: this run's context and answer tokens priced at the configured model's rates. It is a projection, not a measurement, and it is labelled as one wherever it appears.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="figures/pareto_quality_cost_dark.png">
-  <img alt="Quality against projected cost per query" src="figures/pareto_quality_cost.png">
+  <source media="(prefers-color-scheme: dark)" srcset="figures/cbam_synthetic/pareto_quality_cost_dark.png">
+  <img alt="Quality against projected cost per query" src="figures/cbam_synthetic/pareto_quality_cost.png">
 </picture>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="figures/pareto_quality_latency_dark.png">
-  <img alt="Quality against p95 serving latency" src="figures/pareto_quality_latency.png">
+  <source media="(prefers-color-scheme: dark)" srcset="figures/cbam_synthetic/pareto_quality_latency_dark.png">
+  <img alt="Quality against p95 serving latency" src="figures/cbam_synthetic/pareto_quality_latency.png">
 </picture>
 
 ### Non-dominated configurations

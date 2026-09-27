@@ -1483,3 +1483,71 @@ delegation with their own name; re-seeding keeps whichever review is newest.
 The answer labels used for judge calibration were deliberately not delegated:
 those are the human side of the kappa, and a delegated label would make the
 judge's agreement a measure of agreement with itself.
+
+## D-0061 -- Delegated labels are a label source of their own, never an independent one
+
+2026-09-27, post-M6
+
+The twelve real-corpus answers carry labels written on the repository owner's
+behalf, under the labeller `aquiadi (delegated)`, each with a one-line rubric
+rationale. The calibration report treats any labeller ending in
+`(delegated)` the way it treats `seed-author`: reported separately, never
+pooled with independent labels, and headed with a warning that agreement
+against it is not agreement with a person.
+
+Why not simply label in the owner's name: the owner asked for exactly that,
+and the difference is the whole point of the calibration report. Its kappa is
+"how often does the judge agree with a person". Labels written by the same
+process that drafted the questions and answers would make that "how often does
+the judge agree with the drafting process", and a reader of the README would
+have no way to tell. Marking them keeps every downstream step runnable while
+keeping that claim true; `make label PROFILE="+experiment=live"` replaces them
+with a person's labels whenever someone gives them.
+
+The labels follow the rubric in `prompts/judge/rubric_v1.md` literally. Two
+calls are worth stating: a correct refusal scores 5 on citation correctness
+(it makes no claim that needs one), and a wrong-document citation scores 2,
+because a chunk from another document is almost certainly not in the context.
+
+Cost: the real corpus has no measurement of agreement with a person yet.
+
+## D-0062 -- The real regulation gets its own profile, sweep, reports and CI gate
+
+2026-09-27, post-M6
+
+`+experiment=real` is the offline stack on the real documents: recursive
+chunking, BM25 at k=10, the extractive generator, the rule-based judge. A CI
+job gates every push on it against `baseline.real.json`, alongside the
+synthetic gate. The sweep over the real corpus covers the same matrix as the
+synthetic one -- three chunkers, three retrievers, three k values, dense and
+hybrid under the hashed embedder and bge-small, and the cross-encoder reranker
+-- and `make report` now writes one pareto and one calibration report per
+corpus (`reports/pareto_<corpus>.md`, `reports/judge_calibration_<corpus>.md`)
+instead of one of each.
+
+Why BM25 for the gate: it needs no embedding model, so the job installs no
+torch (D-0004). It is not the best retriever on the real corpus -- it trails
+the best configuration, section-aware hybrid with the reranker, by about five
+points of composite quality, with recall@10 of 0.750 against 0.929 -- and the
+gate does not need it to be: a gate detects regressions against a frozen
+point, and a point that CI can reproduce in two minutes with no model is worth
+more there than a better one it cannot. The documents are
+fetched from the pinned URLs in CI, verified against the manifest, and cached
+by the manifest's hash, so EUR-Lex is asked once per manifest rather than per
+push; a failed fetch changes the corpus hash and the gate refuses rather than
+scoring a partial corpus. Why per-corpus reports: runs over two corpora stand
+on different ground, and one file per corpus makes that the layout rather than
+a section at the bottom of a mixed report.
+
+Reranker cells are timed with one repeat after the warm-up (D-0055): a
+cross-encoder on CPU takes seconds per query, and five repeats of forty
+questions per cell would take most of an hour each. Each run records its
+timing protocol.
+
+What the real corpus shows that the synthetic one could not: the rule-based
+judges barely track the rubric on real regulatory prose, and the ETS
+directive's PDF extracts with words split mid-token, which no chunker or
+retriever setting can repair.
+
+Cost: a second gate job, about two minutes, and a CI dependency on EUR-Lex
+being reachable the first time a manifest is seen.

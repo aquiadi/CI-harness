@@ -305,3 +305,26 @@ def test_two_judges_are_reported_side_by_side_rule_last(
     llm = report.index("## Judge: `a-model`")
     rule = report.index("## Judge: `rule-based-v1`")
     assert llm < rule
+
+
+def test_delegated_labels_are_not_counted_as_independent() -> None:
+    """A delegated label is the drafting process agreeing with itself."""
+    sets = partition_labels(
+        [
+            label("e-1", "t", (5, 5, 5), "a-person"),
+            label("e-2", "t", (1, 1, 1), "a-person (delegated)"),
+            label("e-3", "t", (1, 1, 1), "seed-author"),
+        ]
+    )
+    assert [(item.name, item.independent) for item in sets] == [
+        ("a-person", True),
+        ("a-person (delegated)", False),
+        ("seed-author", False),
+    ]
+
+
+def test_delegated_labels_carry_their_own_warning(workspace: DictConfig, tmp_path: Path) -> None:
+    populate(tmp_path, labeller="owner (delegated)")
+    report = build_report(workspace, TOKENIZER)
+    assert "delegated this labelling" in report
+    assert "not independent human labels" in report

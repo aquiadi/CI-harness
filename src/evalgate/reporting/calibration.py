@@ -50,9 +50,19 @@ INDEPENDENCE_WARNING = (
     "and regenerate to get a number that means something."
 )
 
+DELEGATED_SUFFIX = "(delegated)"
+DELEGATED_WARNING = (
+    "**These are not independent human labels.** The repository owner delegated "
+    "this labelling rather than doing it, so these scores came from the same "
+    "process that drafted the questions and answers (docs/DECISIONS.md D-0061). "
+    "Agreement against them says how consistently a rubric was applied, not "
+    "whether the judge agrees with a person. Replace them with `make label` to get "
+    "that number."
+)
+
 MIXED_LABELS_NOTE = (
-    "Labels come from more than one source. Independent human labels and `seed-author` "
-    "ratings are reported separately; they are never pooled."
+    "Labels come from more than one source. Independent human labels, delegated "
+    "labels and `seed-author` ratings are reported separately; they are never pooled."
 )
 
 
@@ -65,14 +75,31 @@ class LabelSet:
     labels: list[HumanLabel]
 
 
+def is_delegated(labeller: str) -> bool:
+    """A label someone delegated rather than gave: not an independent human rating."""
+    return labeller.endswith(DELEGATED_SUFFIX)
+
+
 def partition_labels(labels: Sequence[HumanLabel]) -> list[LabelSet]:
-    """Split labels by labeller, keeping the non-independent ones separate."""
+    """Split labels by source, keeping the non-independent ones separate.
+
+    Independent human labels first, then delegated ones, then seed-author
+    ratings. Only the first kind measures agreement with a person.
+    """
     seeded = [label for label in labels if label.labeller == SEED_LABELLER]
-    human = [label for label in labels if label.labeller != SEED_LABELLER]
+    delegated = [label for label in labels if is_delegated(label.labeller)]
+    human = [
+        label
+        for label in labels
+        if label.labeller != SEED_LABELLER and not is_delegated(label.labeller)
+    ]
     sets: list[LabelSet] = []
     if human:
         labellers = sorted({label.labeller for label in human})
         sets.append(LabelSet(name=", ".join(labellers), independent=True, labels=human))
+    if delegated:
+        labellers = sorted({label.labeller for label in delegated})
+        sets.append(LabelSet(name=", ".join(labellers), independent=False, labels=delegated))
     if seeded:
         sets.append(LabelSet(name=SEED_LABELLER, independent=False, labels=seeded))
     return sets
@@ -464,7 +491,11 @@ def _judge_section(
     for label_set in label_sets:
         parts.append(heading(f"Agreement with {label_set.name} labels", 3))
         if not label_set.independent:
-            parts.append(INDEPENDENCE_WARNING)
+            parts.append(
+                DELEGATED_WARNING
+                if all(is_delegated(label.labeller) for label in label_set.labels)
+                else INDEPENDENCE_WARNING
+            )
 
         rows, every_disagreement = agreement_rows(label_set, judgment_set, scale)
         parts.append(_agreement_table(rows))

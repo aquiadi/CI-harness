@@ -20,6 +20,7 @@ from typing import Any
 from rich.console import Console
 
 from evalgate.config import JudgeConfig, load_config, resolve_path, typed_node
+from evalgate.corpus.manifest import load_manifest_if_present
 from evalgate.evalsets.judgments import JudgmentSet, load_judgment_sets
 from evalgate.evalsets.schemas import AnswerExample, HumanLabel, RetrievalExample
 from evalgate.evalsets.store import read_jsonl
@@ -210,6 +211,58 @@ def _sweep_facts(summaries: list[RunSummary], n_retrieval: int) -> dict[str, str
     }
 
 
+REAL_PROFILE = ["+experiment=real"]
+
+
+def _real_values(root: Path) -> dict[str, str]:
+    """What the README says about the real regulation, from its own artifacts."""
+    cfg = load_config(overrides=REAL_PROFILE)
+    baseline_path = resolve_path(cfg, "gate.baseline_path")
+    summaries, _ = partition_comparable(
+        [
+            summary
+            for summary in latest_per_config(load_summaries(root / "runs"))
+            if summary.meta.corpus_name == str(cfg.corpus.name)
+        ]
+    )
+    retrieval = read_jsonl(resolve_path(cfg, "evalsets.retrieval_path"), RetrievalExample)
+    answers = read_jsonl(resolve_path(cfg, "evalsets.answers_path"), AnswerExample)
+    manifest = load_manifest_if_present(resolve_path(cfg, "paths.corpus_manifest_path"))
+    judge = typed_node(cfg, "judge", JudgeConfig)
+    sets = load_judgment_sets(resolve_path(cfg, "evalsets.judgments_dir"))
+    labels = read_jsonl(resolve_path(cfg, "evalsets.human_labels_path"), HumanLabel)
+    label_sets = partition_labels(labels)
+    values = {
+        "real_documents": str(len(manifest.ok_entries)) if manifest else "0",
+        "real_corpus_hash": short(manifest.corpus_hash()) if manifest else "none",
+        "real_n_configs": str(len(summaries)),
+        "real_pareto_table": _pareto_rows(summaries, TOP_ROWS)
+        if summaries
+        else "No runs over the real corpus yet.",
+        "real_retrieval_slots": str(len(retrieval)),
+        "real_answer_slots": str(len(answers)),
+        "real_label_source": label_sets[0].name if label_sets else "none",
+        "real_judge_comparison": comparison_table(sets, label_sets[0], judge)
+        if sets and label_sets
+        else "No judgments over the real corpus yet.",
+    }
+    if baseline_path.is_file():
+        frozen = read_baseline(baseline_path)
+        values.update(
+            {
+                "real_quality": number(frozen.metrics.get("composite_quality")),
+                "real_recall": number(frozen.metrics.get("recall_at_k")),
+                "real_p95_ms": number(float(frozen.metrics.get("p95_latency_s", 0.0)) * MS, 1),
+                "real_baseline_config": "/".join(
+                    str(frozen.fingerprint.get(node, {}).get("name", "?"))
+                    for node in ("chunker", "retriever")
+                )
+                + f"/k={frozen.metrics.get('k', '?')}",
+            }
+        )
+    return values
+
+
 DEFAULT_OVERRIDES = ["+experiment=baseline"]
 
 
@@ -224,7 +277,15 @@ def build_values(root: Path, overrides: list[str] | None = None) -> dict[str, An
     metrics = baseline.metrics
     judge = typed_node(cfg, "judge", JudgeConfig)
 
-    summaries, excluded = partition_comparable(latest_per_config(load_summaries(root / "runs")))
+    # The baseline's corpus only: the synthetic and real sweeps are different
+    # ground and each has its own report.
+    summaries, excluded = partition_comparable(
+        [
+            summary
+            for summary in latest_per_config(load_summaries(root / "runs"))
+            if summary.meta.corpus_name == baseline.corpus_name
+        ]
+    )
     judgment_sets = load_judgment_sets(resolve_path(cfg, "evalsets.judgments_dir"))
     labels = [
         *read_jsonl(resolve_path(cfg, "evalsets.human_labels_path"), HumanLabel),
@@ -239,6 +300,7 @@ def build_values(root: Path, overrides: list[str] | None = None) -> dict[str, An
     fingerprint = baseline.fingerprint
 
     return {
+        **_real_values(root),
         **_calibration_facts(judgment_sets, labels, judge),
         **_sweep_facts(summaries, int(metrics.get("n_retrieval", 0) or 0)),
         "quality": number(metrics.get("composite_quality")),

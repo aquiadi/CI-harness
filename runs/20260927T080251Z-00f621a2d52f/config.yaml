@@ -1,0 +1,226 @@
+seed: 0
+paths:
+  root: /home/user/CI-harness
+  data_dir: /home/user/CI-harness/data
+  corpus_raw_dir: /home/user/CI-harness/data/corpus/raw
+  corpus_processed_dir: /home/user/CI-harness/data/corpus/processed
+  corpus_manifest_path: /home/user/CI-harness/data/corpus/manifest.json
+  index_dir: /home/user/CI-harness/data/index
+  eval_dir: /home/user/CI-harness/data/eval
+  runs_dir: /home/user/CI-harness/runs
+  scratch_runs_dir: /home/user/CI-harness/runs/scratch
+  reports_dir: /home/user/CI-harness/reports
+  cache_dir: /home/user/CI-harness/.cache
+  prompts_dir: /home/user/CI-harness/prompts
+  cassette_dir: /home/user/CI-harness/tests/cassettes
+  baseline_path: /home/user/CI-harness/baseline.json
+corpus:
+  name: cbam
+  sources:
+  - id: reg_2023_956
+    title: Regulation (EU) 2023/956 establishing a carbon border adjustment mechanism
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32023R0956
+    filename: reg_2023_956.pdf
+    kind: pdf
+    required: true
+  - id: impl_reg_2023_1773
+    title: Commission Implementing Regulation (EU) 2023/1773 (transitional reporting)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32023R1773
+    filename: impl_reg_2023_1773.pdf
+    kind: pdf
+    required: true
+  - id: guidance_importers
+    title: Guidance document on CBAM implementation for importers of goods into the
+      EU
+    url: https://taxation-customs.ec.europa.eu/document/download/bc15e68d-566d-4419-88ec-b8f5c6823eb2_en
+    filename: guidance_importers.pdf
+    kind: pdf
+    required: true
+  - id: guidance_operators
+    title: Guidance document on CBAM implementation for installation operators outside
+      the EU
+    url: https://taxation-customs.ec.europa.eu/document/download/2980287c-dca2-4a4b-aff3-db6374806cf7_en?filename=Guidance%20document%20on%20CBAM%20implementation%20for%20installation%20operators%20outside%20the%20EU.pdf
+    filename: guidance_operators.pdf
+    kind: pdf
+    required: true
+  - id: reg_2023_956_consolidated
+    title: Regulation (EU) 2023/956, consolidated text
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:02023R0956-20240101
+    filename: reg_2023_956_consolidated.pdf
+    kind: pdf
+    required: false
+  - id: ets_directive_2003_87
+    title: Directive 2003/87/EC (EU ETS), consolidated text -- referenced throughout
+      CBAM
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:02003L0087-20240301
+    filename: ets_directive_2003_87.pdf
+    kind: pdf
+    required: false
+  local_dir: null
+  exclude: []
+  request_timeout_s: 120.0
+  max_attempts: 3
+  refetch: false
+  user_agent: evalgate-corpus-fetcher/0.1 (+https://github.com/aquiadi/CI-harness)
+tokenizer:
+  _target_: evalgate.ingest.tokens.RegexTokenEstimator
+  name: regex_word
+  pattern: \w+|[^\w\s]
+  tokens_per_word: 1.3
+chunker:
+  _target_: evalgate.chunking.recursive.RecursiveStructuralChunker
+  name: recursive_structural
+  target_tokens: 256
+  overlap_tokens: 32
+  min_tokens: 48
+  separators:
+  - '
+
+
+
+    '
+  - '
+
+
+    '
+  - '
+
+    '
+  - '. '
+  - ' '
+embedder:
+  _target_: evalgate.embeddings.deterministic.HashEmbedder
+  name: hashed
+  model: hashed-ngram-projection-v1
+  dim: 384
+  batch_size: 256
+  normalize: true
+  query_prefix: ''
+  document_prefix: ''
+  ngram_range:
+  - 1
+  - 2
+  seed: 0
+sparse:
+  name: bm25_default
+  k1: 1.2
+  b: 0.75
+  stopwords: en
+  stemmer: none
+retriever:
+  _target_: evalgate.retrieval.sparse.BM25Retriever
+  name: bm25
+  k: 5
+  rerank:
+    enabled: false
+generator:
+  provider: extractive
+  model: extractive-v1
+  prompt: generation/answer_v1.md
+  max_tokens: 0
+  temperature: 0.0
+  reasoning_effort: null
+  input_usd_per_mtok: 0.0
+  output_usd_per_mtok: 0.0
+  max_sentences: 3
+  max_chunks: 3
+  min_overlap: 2
+judge:
+  provider: heuristic
+  model: rule-based-v1
+  prompt: judge/rubric_v1.md
+  max_tokens: 0
+  temperature: 0.0
+  reasoning_effort: null
+  max_attempts: 1
+  axes:
+  - groundedness
+  - relevance
+  - citation_correctness
+  scale_min: 1
+  scale_max: 5
+  input_usd_per_mtok: 0.0
+  output_usd_per_mtok: 0.0
+  answers_from: reference
+  run_id: null
+  citation_support_min: null
+pricing:
+  model: claude-sonnet-4-6
+  input_usd_per_mtok: 3.0
+  output_usd_per_mtok: 15.0
+probes:
+  position_swap: true
+  length_bias: true
+  self_preference: true
+  contrast_generator: haiku
+  worst_disagreements: 10
+api:
+  provider: anthropic
+  mode: replay
+  cache_enabled: true
+  cache_path: /home/user/CI-harness/.cache/model_cache.sqlite
+  max_retries: 3
+  backoff_initial_s: 1.0
+  backoff_max_s: 30.0
+  timeout_s: 120.0
+gate:
+  baseline_path: /home/user/CI-harness/baseline.real.json
+  quality_drop_pct: 2.0
+  p95_latency_rise_pct: 20.0
+  cost_per_query_rise_pct: 15.0
+  composite_weights:
+    groundedness: 0.3
+    relevance: 0.2
+    citation_correctness: 0.3
+    recall_at_k: 0.2
+  component_drop_max: 0.1
+  latency_reference_path: null
+  bootstrap_resamples: 2000
+  confidence: 0.95
+  items_listed: 10
+evalsets:
+  retrieval_path: /home/user/CI-harness/data/eval/cbam/retrieval.jsonl
+  answers_path: /home/user/CI-harness/data/eval/cbam/answers.jsonl
+  human_labels_path: /home/user/CI-harness/data/eval/cbam/human_labels.jsonl
+  seed_labels_path: /home/user/CI-harness/data/eval/cbam/seed_labels.jsonl
+  seeds_dir: /home/user/CI-harness/data/eval/cbam/seeds
+  judgments_dir: /home/user/CI-harness/data/eval/cbam/judgments
+  limit: null
+timing:
+  warmup: true
+  repeats: 5
+ablation:
+  chunkers:
+  - fixed_token
+  - recursive_structural
+  - section_aware
+  retrievers:
+  - dense
+  - bm25
+  - hybrid
+  k_values:
+  - 3
+  - 5
+  - 10
+  rerank:
+  - false
+label:
+  mode: answers
+  labeller: unknown
+  answers_from: reference
+  run_id: null
+  context_k: 5
+  show_gold: false
+  relabel: false
+evalgen:
+  prompt: evalgen/retrieval_candidates_v1.md
+  model: claude-sonnet-4-6
+  max_tokens: 2048
+  temperature: 0.0
+  max_attempts: 3
+  target_slots: 120
+  sample_chunks: 80
+  max_questions_per_chunk: 2
+  min_chunk_tokens: 60
+  input_usd_per_mtok: 3.0
+  output_usd_per_mtok: 15.0

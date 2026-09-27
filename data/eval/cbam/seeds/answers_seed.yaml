@@ -64,7 +64,7 @@ examples:
     question: By what date must certificates be surrendered each year?
     doc: reg_2023_956
     spans:
-      - "By 31 May of each year, and for the first time in 2027 for the year 2026, each authorised CBAM declarant shall use the CBAM registry"
+      - "By 31 May of each year, and for the first time in 2027 for the year 2026, the authorised CBAM declarant shall surrender via the CBAM registry"
     flaw: none
     answer: |
       Certificates covering the previous year's embedded emissions must be

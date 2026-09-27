@@ -1,0 +1,30 @@
+{
+  "composite_components": {
+    "citation_correctness": 1.0,
+    "groundedness": 0.75,
+    "recall_at_k": 0.8928571428571429,
+    "relevance": 0.5416666666666666
+  },
+  "composite_quality": 0.8119047619047619,
+  "context_tokens_per_query": 1478.9166666666667,
+  "cost_per_query_usd": 0.0,
+  "eval_cost_usd": 0.0,
+  "input_tokens_per_query": 0.0,
+  "judge_citation_correctness": 5.0,
+  "judge_citation_correctness_normalised": 1.0,
+  "judge_groundedness": 4.0,
+  "judge_groundedness_normalised": 0.75,
+  "judge_relevance": 3.1666666666666665,
+  "judge_relevance_normalised": 0.5416666666666666,
+  "k": 5,
+  "mean_latency_s": 0.02773325099999511,
+  "mrr": 0.6541666666666667,
+  "n_answers": 12,
+  "n_retrieval": 28,
+  "ndcg_at_10": 0.7128044481929869,
+  "output_tokens_per_query": 0.0,
+  "p50_latency_s": 0.027470079999943664,
+  "p95_latency_s": 0.03230114364990868,
+  "projected_cost_per_query_usd": 0.00693175,
+  "recall_at_k": 0.8928571428571429
+}

@@ -1,0 +1,26 @@
+# @package _global_
+# The real CBAM documents on the offline stack: the extractive generator, the
+# rule-based judge and no model call anywhere, so it runs with no key. This is
+# what the real-corpus sweep in reports/pareto_cbam.md measures, and what the
+# real-corpus CI gate holds to baseline.real.json.
+#
+# It needs the documents on disk -- `make corpus PROFILE="+experiment=real"`
+# fetches them and checks them against the pinned SHA256s -- and the accepted
+# questions in data/eval/cbam/.
+#
+# Retrieval is BM25 by default, which needs no embedding model, so the gate
+# that uses this profile never installs torch. The sweep overrides the
+# retriever and the embedder cell by cell.
+defaults:
+  - override /corpus: cbam
+  - override /chunker: recursive_structural
+  - override /retriever: bm25
+  - override /embedder: hashed
+  - override /generator: extractive
+  - override /judge: heuristic
+  - override /api: replay
+
+retriever:
+  k: 10
+gate:
+  baseline_path: ${paths.root}/baseline.real.json

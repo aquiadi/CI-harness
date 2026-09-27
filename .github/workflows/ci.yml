@@ -146,6 +146,82 @@ jobs:
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
 
+  # The same offline gate on the real regulation. BM25 and the rule-based judge,
+  # so no model, no torch and no key; the documents are fetched from the pinned
+  # URLs, checked against the manifest's SHA256s, and cached between runs so
+  # EUR-Lex is asked for them once rather than on every push. A document that
+  # fails to fetch changes the corpus hash, and the gate then refuses as
+  # incomparable instead of scoring a partial corpus.
+  real-gate:
+    name: quality gate (real corpus, offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PROFILE: "+experiment=real"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Restore the pinned documents
+        uses: actions/cache@v4
+        with:
+          path: data/corpus/raw
+          key: cbam-corpus-${{ hashFiles('data/corpus/manifest.json') }}
+
+      - name: Fetch and verify the pinned documents
+        run: make corpus
+
+      - name: Measure the base commit on this runner
+        id: base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "::notice::no base commit to measure; latency is compared to the frozen baseline"
+            exit 0
+          fi
+          git worktree add --detach "$RUNNER_TEMP/base" "$BASE_SHA"
+          cp -r data/corpus/raw/. "$RUNNER_TEMP/base/data/corpus/raw/"
+          (cd "$RUNNER_TEMP/base" && uv sync --frozen && make eval) || true
+          if [ -f "$RUNNER_TEMP/base/reports/gate.json" ]; then
+            echo "reference=$RUNNER_TEMP/base/reports/gate.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::the base commit has no real-corpus gate; latency is compared to the frozen baseline"
+          fi
+
+      - name: Run the real-corpus quality gate
+        env:
+          REFERENCE: ${{ steps.base.outputs.reference }}
+        run: |
+          if [ -n "$REFERENCE" ]; then
+            make eval ARGS="gate.latency_reference_path=$REFERENCE"
+          else
+            make eval
+          fi
+
+      - name: Upload the real-corpus gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-gate-report
+          path: |
+            reports/gate.md
+            reports/gate.json
+
   # The offline gate cannot see a citation regression: the extractive
   # generator cites correctly by construction. This job gates a real generator
   # and a real judge, replayed from committed cassettes, so it is as free and

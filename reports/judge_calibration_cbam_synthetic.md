@@ -4,7 +4,7 @@
 - judges on disk: `qwen/qwen3.8-27b`, `rule-based-v1`, `rule-based-v2`
 - label sources: aditya, seed-author
 
-Labels come from more than one source. Independent human labels and `seed-author` ratings are reported separately; they are never pooled.
+Labels come from more than one source. Independent human labels, delegated labels and `seed-author` ratings are reported separately; they are never pooled.
 
 ## Judges compared against aditya labels
 

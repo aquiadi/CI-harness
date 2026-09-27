@@ -1,0 +1,349 @@
+{
+  "api_mode": "replay",
+  "config_hash": "679cc2040aa78bd6210ca749a02307d86b1d6b77d16e51da3246655e7a986d5e",
+  "corpus_hash": "ab0fc00c74680a7fe25a86fc458e40b3ab1decee8024444149c18302b1c3f053",
+  "corpus_name": "cbam",
+  "evalset_hashes": {
+    "answers": "56a0f29b03f5ebf96fb3d41c52d187646e8b0723e1e897aad1355fa8fe58cb2b",
+    "retrieval": "e7c749497843419fe41b9429203bca3950f5ca35b7bb48c9b8ba790e5f38e94a"
+  },
+  "fingerprint": {
+    "chunker": {
+      "min_tokens": 48,
+      "name": "recursive_structural",
+      "overlap_tokens": 32,
+      "separators": [
+        "\n\n\n",
+        "\n\n",
+        "\n",
+        ". ",
+        " "
+      ],
+      "target_tokens": 256,
+      "tokenizer": {
+        "name": "regex_word",
+        "pattern": "\\w+|[^\\w\\s]",
+        "tokens_per_word": 1.3
+      }
+    },
+    "embedder": {
+      "dim": 384,
+      "document_prefix": "",
+      "model": "hashed-ngram-projection-v1",
+      "name": "hashed",
+      "ngram_range": [
+        1,
+        2
+      ],
+      "normalize": true,
+      "query_prefix": "",
+      "seed": 0
+    },
+    "generator": {
+      "max_chunks": 3,
+      "max_sentences": 3,
+      "min_overlap": 2,
+      "model": "extractive-v1",
+      "name": "extractive"
+    },
+    "judge": {
+      "axes": [
+        "groundedness",
+        "relevance",
+        "citation_correctness"
+      ],
+      "model": "rule-based-v1",
+      "name": "heuristic",
+      "scale": [
+        1,
+        5
+      ]
+    },
+    "retriever": {
+      "k": 10,
+      "name": "bm25",
+      "sparse": {
+        "b": 0.75,
+        "k1": 1.2,
+        "name": "bm25_default",
+        "stemmer": "none",
+        "stopwords": "en"
+      }
+    }
+  },
+  "frozen_at": "2026-09-27T08:33:11Z",
+  "index_hash": "56b97e2eef3cc625c20f1d40a9848f9bd605a92a3fa522f25444362d921d3f81",
+  "items": {
+    "answers": [
+      {
+        "answer_hash": "751b8e2a5587ca996b8fd1b6a7f303de4592a29b8297cfd29d093b7702d51f74",
+        "example_id": "cbam-a-001",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 4.0
+      },
+      {
+        "answer_hash": "f2a5e75af4125f4f085c933dd7d645e96baa056b29cafb3b715ec5781fb7d55f",
+        "example_id": "cbam-a-002",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "0966f807b9637cf1a5da185d3cc9d2741a5530091ef5f9cb567c5afe801af862",
+        "example_id": "cbam-a-003",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "07de013014c35597d1f0c143ce0d1015ed5e25ae886899914d544c5151a68500",
+        "example_id": "cbam-a-004",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "8af3d4d49bf4e99695e43900d2f8f8600b4e19a126d21bd6a707287390f60ec2",
+        "example_id": "cbam-a-005",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "970966b7dfa780a48499ef7e0ea936458a1675b7f5c0f83e905b0fd9cf0dbf56",
+        "example_id": "cbam-a-006",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 3.0,
+        "judge_relevance": 4.0
+      },
+      {
+        "answer_hash": "015705dedc714ef11652810571ea38a945c18456031a7e99e57133e91118d9f5",
+        "example_id": "cbam-a-007",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 3.0
+      },
+      {
+        "answer_hash": "02cb7d7bdeddb204826bc61a7b46a0cb01436d813be8394349461240e814fb3f",
+        "example_id": "cbam-a-008",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 2.0
+      },
+      {
+        "answer_hash": "3d84b11f72ae28821dbe742c06a99de34318b26d5d69f5b9e809378afea5310c",
+        "example_id": "cbam-a-009",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 5.0,
+        "judge_relevance": 4.0
+      },
+      {
+        "answer_hash": "8fef38578ce6d593703739a0bdd489f561fbdcc66b6e7d7c9f65c2d82503ea40",
+        "example_id": "cbam-a-010",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 4.0
+      },
+      {
+        "answer_hash": "5484ef8901c445f0b47ba2272d510ea0ae7933cba10d701d655330e7075979c2",
+        "example_id": "cbam-a-011",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 4.0
+      },
+      {
+        "answer_hash": "467962889e9a8d54812b6db5a7091d03adfe0aa2479f00a07de48afcd57deb95",
+        "example_id": "cbam-a-012",
+        "judge_citation_correctness": 5.0,
+        "judge_groundedness": 4.0,
+        "judge_relevance": 3.0
+      }
+    ],
+    "retrieval": [
+      {
+        "example_id": "cbam-r-001",
+        "first_hit_rank": -1,
+        "recall_at_k": 0.0
+      },
+      {
+        "example_id": "cbam-r-002",
+        "first_hit_rank": 2,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-003",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-004",
+        "first_hit_rank": 4,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-005",
+        "first_hit_rank": -1,
+        "recall_at_k": 0.0
+      },
+      {
+        "example_id": "cbam-r-006",
+        "first_hit_rank": -1,
+        "recall_at_k": 0.0
+      },
+      {
+        "example_id": "cbam-r-007",
+        "first_hit_rank": -1,
+        "recall_at_k": 0.0
+      },
+      {
+        "example_id": "cbam-r-008",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-009",
+        "first_hit_rank": 1,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-010",
+        "first_hit_rank": 2,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-011",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-012",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-013",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-014",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-015",
+        "first_hit_rank": -1,
+        "recall_at_k": 0.0
+      },
+      {
+        "example_id": "cbam-r-016",
+        "first_hit_rank": 5,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-017",
+        "first_hit_rank": 5,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-018",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-019",
+        "first_hit_rank": 1,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-020",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-021",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-022",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-023",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-024",
+        "first_hit_rank": -1,
+        "recall_at_k": 0.0
+      },
+      {
+        "example_id": "cbam-r-025",
+        "first_hit_rank": -1,
+        "recall_at_k": 0.0
+      },
+      {
+        "example_id": "cbam-r-026",
+        "first_hit_rank": 3,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-027",
+        "first_hit_rank": 0,
+        "recall_at_k": 1.0
+      },
+      {
+        "example_id": "cbam-r-028",
+        "first_hit_rank": 2,
+        "recall_at_k": 1.0
+      }
+    ]
+  },
+  "metrics": {
+    "composite_components": {
+      "citation_correctness": 1.0,
+      "groundedness": 0.75,
+      "recall_at_k": 0.75,
+      "relevance": 0.5833333333333334
+    },
+    "composite_quality": 0.7916666666666666,
+    "context_tokens_per_query": 2971.5833333333335,
+    "cost_per_query_usd": 0.0,
+    "eval_cost_usd": 0.0,
+    "input_tokens_per_query": 0.0,
+    "judge_citation_correctness": 5.0,
+    "judge_citation_correctness_normalised": 1.0,
+    "judge_groundedness": 4.0,
+    "judge_groundedness_normalised": 0.75,
+    "judge_relevance": 3.3333333333333335,
+    "judge_relevance_normalised": 0.5833333333333334,
+    "k": 10,
+    "mean_latency_s": 0.00017205090000800284,
+    "mrr": 0.5279761904761905,
+    "n_answers": 12,
+    "n_retrieval": 28,
+    "ndcg_at_10": 0.5818501159523891,
+    "output_tokens_per_query": 0.0,
+    "p50_latency_s": 0.00011015800004088305,
+    "p95_latency_s": 0.0003663718999632692,
+    "projected_cost_per_query_usd": 0.01162225,
+    "recall_at_k": 0.75
+  },
+  "notes": "The real CBAM documents on the offline stack: recursive chunking, BM25 at k=10, the extractive generator and the rule-based judge. BM25 needs no embedding model, so the real-corpus CI gate installs no torch. Frozen from its recorded sweep run.",
+  "prompt_hashes": {
+    "generator": "9b957d00ba63a2c16c4eedc8863057dff30ad885dae34130de82c65e14eff4bc",
+    "judge": "035548ced080f92991f0ed2fe8912ede87c0f81e5ec0d6b61ba1b9bc88c984eb"
+  },
+  "replayed": false,
+  "run_id": "20260927T080307Z-679cc2040aa7",
+  "schema_version": 2,
+  "timing": {
+    "repeats": 5,
+    "statistic": "median",
+    "warmup": true
+  }
+}

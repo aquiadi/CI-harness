@@ -26,6 +26,60 @@ it got better. This one is the other way round.
 > flag with its cost written down. The README itself is rendered from the
 > artifacts by `make readme`, so no number in it was typed by hand.
 
+## On the real regulation
+
+The harness also runs on the real instruments: 5 documents --
+Regulation (EU) 2023/956, Implementing Regulation (EU) 2023/1773, the
+Commission's two guidance documents and the ETS directive -- fetched from their
+pinned URLs and checked byte for byte against the SHA256s in
+`data/corpus/manifest.json` (corpus hash `ab0fc00c7468`). The PDFs are
+not committed; `make corpus PROFILE="+experiment=real"` reproduces them.
+
+They are scored on 28 retrieval questions and
+12 answer examples in `data/eval/cbam/`, every gold span
+checked verbatim against the extracted text. The questions were drafted from
+the documents and accepted in a review the repository owner delegated rather
+than did, and every record says so (D-0060).
+
+Pull-request CI gates this corpus too, offline: BM25 at
+`recursive_structural/bm25/k=10`, the extractive generator and the rule-based judge,
+held to `baseline.real.json` -- composite 0.792, recall@k
+0.750, p95 0.4 ms. BM25 needs no embedding model, so the
+job installs no torch; it caches the documents between runs and refuses as
+incomparable if one fails to fetch.
+
+54 configurations measured on the real corpus, dense and hybrid
+under both the hashed embedder and bge-small, plus the cross-encoder reranker
+([`reports/pareto_cbam.md`](reports/pareto_cbam.md)):
+
+|  | config | quality | recall@k | nDCG@10 | p95 ms | projected $/q |
+| --- | --- | --- | --- | --- | --- | --- |
+| * | section/hybrid_rerank/k=10 | 0.846 | 0.929 | 0.805 | 8861.2 | 0.014434 |
+| * | section/hybrid_rerank/k=5 | 0.826 | 0.893 | 0.792 | 9163.5 | 0.008718 |
+| * | section/hybrid/k=10/local | 0.821 | 0.857 | 0.647 | 31.1 | 0.013603 |
+|  | recursive/hybrid/k=10/local | 0.818 | 0.893 | 0.713 | 32.0 | 0.011347 |
+|  | fixed/hybrid/k=10/local | 0.818 | 0.786 | 0.644 | 34.4 | 0.011154 |
+| * | recursive/hybrid/k=5/local | 0.812 | 0.893 | 0.713 | 32.3 | 0.006932 |
+|  | recursive/hybrid_rerank/k=10 | 0.812 | 0.893 | 0.693 | 5494.5 | 0.010967 |
+|  | recursive/dense/k=10/local | 0.811 | 0.857 | 0.707 | 32.5 | 0.011108 |
+
+The rule-based judges against the answer labels on this corpus
+([`reports/judge_calibration_cbam.md`](reports/judge_calibration_cbam.md)).
+Those labels are delegated, not an independent person's, so this says how
+consistently the rubric and the rules line up, not how a person would rate the
+answers:
+
+| judge | retriever | embedder | n | kappa groundedness | kappa relevance | kappa citation_correctness |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rule-based-v1` | hybrid (k=8) | local / BAAI/bge-small-en-v1.5 | 12 | -0.043 | 0.091 | 0.176 |
+| `rule-based-v2` | hybrid (k=8) | local / BAAI/bge-small-en-v1.5 | 12 | -0.043 | 0.091 | 0.200 |
+
+Each judge scored the answers against context from its own retrieval stack. Where the stacks differ, so did what the judges were shown, and the gap between two rows is not only a difference between judges.
+
+No LLM has run on this corpus yet. The live profiles (`+experiment=live`,
+`+experiment=live_groq`) are wired to it; what they wait for is an API key in
+the environment that runs them.
+
 ## Architecture
 
 ```mermaid
@@ -56,7 +110,7 @@ flowchart LR
         SCORES --> KAPPA
         RM --> RUN[(run artifact<br/>parquet + hashes)]
         SCORES --> RUN
-        RUN --> PARETO[reports/pareto.md]
+        RUN --> PARETO[reports/pareto_*.md]
         RUN --> GATE{gate<br/>vs baseline.json}
         GATE -->|regression| FAIL[CI fails the PR]
         GATE -->|within thresholds| PASS[CI passes]
@@ -104,13 +158,12 @@ make freeze PROFILE="+experiment=live"     # once, deliberately
 make eval PROFILE="+experiment=live"
 ```
 
-One thing has to exist first: a reviewed eval set for the real documents.
-Gold evidence is a verbatim span of the corpus it came from, so the synthetic
-questions cannot be scored against the regulation, and the runner refuses to
-try rather than report the resulting zeros as a measurement (D-0050). Drafts
-are in `data/eval/cbam/`; `make seed PROFILE="+experiment=live"` materialises
-them and `make label PROFILE="+experiment=live" ARGS="label.mode=retrieval"`
-accepts or rejects each one.
+The real documents have their own eval set in `data/eval/cbam/`: gold evidence
+is a verbatim span of the corpus it came from, so the synthetic questions
+cannot be scored against the regulation, and the runner refuses to try rather
+than report the resulting zeros as a measurement (D-0050).
+`make label PROFILE="+experiment=live" ARGS="label.mode=retrieval"` re-reviews
+the questions and `make label PROFILE="+experiment=live"` labels the answers.
 
 Always pass a profile as `PROFILE`, never inside `ARGS`: the Makefile already
 passes one, and two `+experiment` values do not compose.
@@ -218,7 +271,7 @@ with a key.
 
 ## Judge calibration findings
 
-Full report: [`reports/judge_calibration.md`](reports/judge_calibration.md).
+Full report: [`reports/judge_calibration_cbam_synthetic.md`](reports/judge_calibration_cbam_synthetic.md).
 Agreement between the LLM judge (`qwen/qwen3.8-27b`) and the only labels
 currently on disk (`aditya`, 15 paired items). Every judge
 set on disk carries a record of the judge and retrieval stack that produced
@@ -295,7 +348,7 @@ accumulate instead of overwriting.
 ## The ablation frontier
 
 Full report with both frontier figures:
-[`reports/pareto.md`](reports/pareto.md). 54 configurations measured
+[`reports/pareto_cbam_synthetic.md`](reports/pareto_cbam_synthetic.md). 54 configurations measured
 over {chunker} x {retriever} x {k}, dense and hybrid under both the hashed
 embedder and bge-small, all judged by the rule-based judge. One row per
 measurement: BM25 ignores the embedder, so its two sweeps were one measurement
@@ -457,15 +510,13 @@ Worst first.
    correctness at 0.348, and with one labeller I cannot
    tell whether a low number is the judge being wrong or the rubric being
    loose. A second labeller is the next thing that would move this.
-2. The corpus is synthetic. Five documents I wrote in the structural style of
-   the CBAM instruments, marked as such in every file (D-0016). Shorter
-   sentences, fewer cross-references, no 400-word provisions. The numbers here
-   are optimistic against the real thing. `make corpus PROFILE="+experiment=live"`
-   fetches the real instruments, byte-identical to the pinned hashes, and the
-   pipeline runs end to end on them. What is missing is a reviewed eval set:
-   `data/eval/cbam/` holds model-drafted questions whose evidence is verified
-   verbatim against the documents, and none is scored until a person accepts
-   it with `make label PROFILE="+experiment=live" ARGS="label.mode=retrieval"`.
+2. Most of what is written up here is on the synthetic corpus. Five documents
+   I wrote in the structural style of the CBAM instruments, marked as such in
+   every file (D-0016): shorter sentences, fewer cross-references, numbers
+   optimistic against the real thing. The real regulation now has its own
+   sweep, gate and eval set (above), but its questions were reviewed by
+   delegation rather than by a person, and its answer labels are delegated
+   too, so nothing on the real corpus yet measures agreement with a person.
 3. The measured generator makes no API call. The committed frontier uses the
    extractive baseline, so every quality figure is a floor and the cost axis is
    a projection rather than spend (D-0028). Relative ordering of retrieval
@@ -483,9 +534,10 @@ Worst first.
    on every run. `make gen-eval` drafts candidates and `make label` reviews
    them.
 6. The nightly live job cannot pass yet. It now runs -- it used to fail to
-   compose its own config every night (D-0049) -- but it needs a real-corpus
-   eval set, a frozen live baseline and an API key secret, and until all three
-   exist it keeps one issue open saying which is missing.
+   compose its own config every night (D-0049), and the real-corpus eval set it
+   needs now exists -- but it still needs a frozen live baseline and an API key
+   secret, and until both exist it keeps one issue open saying which is
+   missing.
 7. Replayed latency is recorded latency. A replay run reports the latency
    measured when the cassette was recorded, not the time to read it back
    (D-0030). That is the honest choice - the alternative reports disk speed as

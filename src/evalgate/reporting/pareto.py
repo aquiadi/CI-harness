@@ -257,6 +257,7 @@ def build_report(
     summaries: Sequence[RunSummary],
     excluded: Sequence[RunSummary],
     reports_dir: Path,
+    figures_subdir: str = "",
 ) -> str:
     """Render the ablation report and write its figures."""
     parts: list[str] = [heading(TITLE, 1)]
@@ -295,7 +296,10 @@ def build_report(
     cost_frontier = {point.label for point in frontier(cost_points)}
     latency_frontier = {point.label for point in frontier(latency_points)}
 
-    figures = reports_dir / FIGURES_DIR
+    # One figures directory per corpus, so two corpora's reports never
+    # overwrite each other's plots.
+    figures_path = f"{FIGURES_DIR}/{figures_subdir}" if figures_subdir else FIGURES_DIR
+    figures = reports_dir / figures_path
     render(
         cost_points,
         figures / COST_FIGURE,
@@ -330,9 +334,11 @@ def build_report(
         else "Cost is measured from API usage on every run below."
     )
     parts.append(
-        _figure(FIGURES_DIR + "/" + COST_FIGURE, "Quality against projected cost per query")
+        _figure(figures_path + "/" + COST_FIGURE, "Quality against projected cost per query")
     )
-    parts.append(_figure(FIGURES_DIR + "/" + LATENCY_FIGURE, "Quality against p95 serving latency"))
+    parts.append(
+        _figure(figures_path + "/" + LATENCY_FIGURE, "Quality against p95 serving latency")
+    )
 
     parts.append(heading("Non-dominated configurations", 3))
     parts.append(
