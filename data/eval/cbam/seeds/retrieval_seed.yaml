@@ -156,6 +156,7 @@ examples:
     difficulty: semantic
     spans:
       - "Any importer established in a Member State shall, prior to importing goods into the customs territory of the Union, apply for the status of authorised CBAM declarant"
+      - "Goods shall be imported into the customs territory of the Union only by an authorised CBAM declarant"
   - id: cbam-r-024
     question: In what units are electricity and other goods reported in a CBAM report?
     doc: reg_2023_956
@@ -181,7 +182,7 @@ examples:
     spans:
       - "does not exceed EUR 150 per consignment"
   - id: cbam-r-028
-    question: Which document do I need to identify myself for customs when applying for authorisation?
+    question: Which customs identification number must an application for authorisation include?
     doc: reg_2023_956
     difficulty: semantic
     spans:

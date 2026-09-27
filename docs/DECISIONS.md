@@ -1457,3 +1457,29 @@ and is left visible rather than patched over.
 
 Cost: nothing on the real corpus is measured until the review happens, so the
 live profiles still refuse to run. That is the intended state.
+
+## D-0060 -- The real-corpus questions were accepted in a delegated review
+
+2026-09-27, post-M6
+
+All 28 retrieval questions in `data/eval/cbam/` are accepted. The review was
+delegated by the repository owner rather than done by the owner in person, and
+every record says so: `reviewed_by` is `aquiadi (delegated)` and the note reads
+"not an independent human review".
+
+Each question was checked against the text around its evidence: that the
+evidence answers it, that the question does not have a better answer elsewhere
+the gold spans would miss, and that its wording does not make a correct answer
+look wrong. Two were edited. cbam-r-023 asked whether an importer must be
+authorised before importing; the direct answer is Article 4 ("Goods shall be
+imported ... only by an authorised CBAM declarant"), which was added as
+evidence beside the Article 5 duty to apply. cbam-r-028 asked which *document*
+an application needs, when the answer is the EORI *number*. None was rejected.
+
+Cost: the questions are drafted and reviewed by the same hand, which is the
+weakness D-0059 set out to avoid. The records are marked so that a person can
+re-review them with `make label ARGS=label.mode=retrieval` and replace the
+delegation with their own name; re-seeding keeps whichever review is newest.
+The answer labels used for judge calibration were deliberately not delegated:
+those are the human side of the kappa, and a delegated label would make the
+judge's agreement a measure of agreement with itself.
